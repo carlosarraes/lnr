@@ -93,7 +93,11 @@ pub fn render(f: &mut Frame, app: &mut App) {
         text(
             f,
             area,
-            "Please resize to at least 60 × 18.\nq quit · Ctrl-C exit · ? help",
+            if matches!(app.overlay, Some(Overlay::Help)) {
+                "Keyboard\n↑↓ move · enter open · esc back\nm mine · / search · f filter\nn next page · r refresh\nPgUp/PgDn scroll details\n?/esc close · q quit overview\nCtrl-C exit\nResize to at least 60 × 18."
+            } else {
+                "Please resize to at least 60 × 18.\nq quit overview · Ctrl-C exit · ? help"
+            },
             MUTED,
         );
         return;

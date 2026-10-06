@@ -306,18 +306,17 @@ impl App {
                         RequestKind::Projects { .. } => {
                             if let Ok(data) = serde_json::from_value(data) {
                                 self.projects
-                                    .ingest(Reply { data, meta }, append, |p| &p.project.id);
+                                    .ingest(Reply { data, meta }, true, |p| &p.project.id);
                             }
                         }
                         RequestKind::Issues { .. } => {
                             if let Ok(data) = serde_json::from_value(data) {
-                                self.issues.ingest(Reply { data, meta }, append, |i| &i.id);
+                                self.issues.ingest(Reply { data, meta }, true, |i| &i.id);
                             }
                         }
                         RequestKind::Comments { .. } => {
                             if let Ok(data) = serde_json::from_value(data) {
-                                self.comments
-                                    .ingest(Reply { data, meta }, append, |c| &c.id);
+                                self.comments.ingest(Reply { data, meta }, true, |c| &c.id);
                             }
                         }
                         _ => {}
@@ -345,7 +344,9 @@ impl App {
         if let Some(overlay) = self.overlay.take() {
             match overlay {
                 Overlay::Help => {
-                    if !matches!(key, K::Esc | K::Char('?') | K::Enter) {
+                    if key == K::Char('q') && self.screen == Screen::Projects {
+                        self.quit = true;
+                    } else if !matches!(key, K::Esc | K::Char('?') | K::Enter) {
                         self.overlay = Some(Overlay::Help);
                     }
                 }
@@ -417,7 +418,7 @@ impl App {
         match key {
             K::Char('?') => self.overlay = Some(Overlay::Help),
             K::Char('q') if self.screen == Screen::Projects => self.quit = true,
-            K::Esc => {
+            K::Esc if self.screen != Screen::Projects => {
                 self.generation += 1;
                 self.loading = false;
                 self.error = None;

@@ -89,3 +89,12 @@ fn detail_scroll_can_reach_last_word_wrapped_line() {
     let s = draw(&mut a, 60, 18);
     assert!(s.contains("FINAL SENTENCE"), "{s}");
 }
+
+#[test]
+fn help_is_visible_below_minimum_size() {
+    let mut a = app();
+    a.overlay = Some(Overlay::Help);
+    let s = draw(&mut a, 40, 10);
+    assert!(s.contains("Keyboard"));
+    assert!(s.contains("quit"));
+}

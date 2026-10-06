@@ -196,3 +196,48 @@ fn issue_refresh_failure_preserves_discussion() {
     });
     assert_eq!(a.comments.items[0].body, "Keep this");
 }
+
+#[test]
+fn partial_refresh_preserves_previous_rows_and_adds_available_data() {
+    let mut a = loaded();
+    let request = key(&mut a, K::Char('r')).pop().unwrap();
+    let Payload::Projects(partial) = projects(&["a", "d"]) else {
+        panic!()
+    };
+    let mut error = lnr::error::AppError::new("api", "partial");
+    error.data = Some(serde_json::to_value(partial.data).unwrap());
+    a.apply(Response {
+        generation: request.generation,
+        kind: request.kind,
+        result: Err(error),
+    });
+    assert_eq!(
+        a.projects
+            .items
+            .iter()
+            .map(|p| p.project.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["a", "b", "c", "d"]
+    );
+    assert!(!a.projects.complete);
+}
+#[test]
+fn escape_on_overview_does_not_cancel_initial_loading() {
+    let mut a = App::new();
+    let request = a.start().remove(1);
+    key(&mut a, K::Esc);
+    assert!(a.loading);
+    a.apply(Response {
+        generation: request.generation,
+        kind: request.kind,
+        result: Ok(projects(&["a"])),
+    });
+    assert_eq!(a.projects.items.len(), 1);
+}
+#[test]
+fn help_preserves_overview_quit() {
+    let mut a = loaded();
+    key(&mut a, K::Char('?'));
+    key(&mut a, K::Char('q'));
+    assert!(a.quit);
+}
