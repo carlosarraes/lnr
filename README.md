@@ -61,7 +61,7 @@ just build           # Install lnr and a linear symlink into ~/.local/bin
 just sync            # Also install on mac, building there when OS/arch differ
 just sync HOST       # Install on another SSH host
 just check           # Formatting, Clippy, and tests
-just release 0.1.0   # From clean, pushed main: verify, tag, push, publish via CI
+just release 0.0.1   # From clean, pushed main: verify, tag, push, publish via CI
 ```
 
 Sync requires SSH, rsync, and Rust on the destination when building there.
