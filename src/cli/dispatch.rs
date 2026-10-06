@@ -82,11 +82,15 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
             .await
             .map(crate::service::page::Reply::into_json),
         Command::Issue {
-            command: args::IssueCommand::View { reference },
+            command:
+                args::IssueCommand::View {
+                    reference,
+                    no_comments,
+                },
         } => service
-            .view_issue(&reference)
+            .inspect_issue(&reference, !no_comments)
             .await
-            .map(crate::service::page::Reply::data),
+            .map(crate::service::page::Reply::into_json),
         Command::Issue {
             command: args::IssueCommand::List { filter, page },
         } => service

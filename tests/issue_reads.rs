@@ -5,7 +5,7 @@ use support::*;
 fn issue_view_returns_details() {
     let s = Server::new(vec![(
         200,
-        json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details"}}}),
+        json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details","comments":page(json!([]),false,None)}}}),
     )]);
     let o = s.run(&["issue", "view", "ENG-1"]);
     assert!(o.status.success(), "{:?}", value(&o));

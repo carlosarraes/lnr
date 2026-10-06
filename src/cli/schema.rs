@@ -59,7 +59,7 @@ pub fn command_schema() -> Value {
     let mut commands = vec![];
     walk(&cli, "lnr", &mut commands);
     let outputs = json!({
-     "issue":envelope::<model::Issue>(),"issues":envelope::<Vec<model::Issue>>(),
+     "issue_view":envelope::<model::IssueView>(),"issue":envelope::<model::Issue>(),"issues":envelope::<Vec<model::Issue>>(),
      "issue_context":envelope::<model::IssueContext>(),"project":envelope::<model::Project>(),"projects":envelope::<Vec<model::Project>>(),
      "comment":envelope::<model::Comment>(),"comments":envelope::<Vec<model::Comment>>(),"relation":envelope::<model::Relation>(),"relations":envelope::<model::RelationsPage>(),
      "catalog":envelope::<Vec<CatalogEntity>>(),"auth":envelope::<model::AuthStatus>(),"receipt":envelope::<Value>(),"raw":envelope::<Value>(),"discovery":envelope::<Value>()
@@ -72,7 +72,8 @@ pub fn command_schema() -> Value {
 }
 fn output_name(path: &str) -> &'static str {
     match path {
-        "lnr issue view" | "lnr issue create" | "lnr issue update" => "issue",
+        "lnr issue view" => "issue_view",
+        "lnr issue create" | "lnr issue update" => "issue",
         "lnr issue list" | "lnr project issues" => "issues",
         "lnr issue context" => "issue_context",
         "lnr issue comment list" => "comments",

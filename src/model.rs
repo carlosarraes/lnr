@@ -149,3 +149,11 @@ pub struct AuthStatus {
     #[serde(default)]
     pub organization: Option<Organization>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct IssueView {
+    #[serde(flatten)]
+    pub issue: Issue,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comments: Option<Vec<Comment>>,
+}

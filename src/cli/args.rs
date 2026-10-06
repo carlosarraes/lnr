@@ -123,6 +123,9 @@ pub enum IssueCommand {
     },
     View {
         reference: String,
+        /// Omit comments; default view fetches all pages, oldest first
+        #[arg(long)]
+        no_comments: bool,
     },
     Context {
         reference: String,

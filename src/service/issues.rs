@@ -111,6 +111,79 @@ impl Service {
         }
         self.list("Issues", "issues", filter, page).await?.decode()
     }
+    /// Fetch the complete discussion for a human/agent view without adding work to ID resolution.
+    pub async fn inspect_issue(
+        &self,
+        reference: &str,
+        comments: bool,
+    ) -> Result<Reply<crate::model::IssueView>> {
+        if !comments {
+            return Ok(Reply {
+                data: crate::model::IssueView {
+                    issue: self.view_issue(reference).await?,
+                    comments: None,
+                },
+                meta: json!({}),
+            });
+        }
+        if reference.trim().is_empty() {
+            return Err(AppError::input("Issue reference must not be empty"));
+        }
+        let mut pages = Pages::new(None);
+        let mut issue = Value::Null;
+        let mut first = true;
+        loop {
+            let result = if first {
+                self.query("IssueView", json!({"id":reference,"includeComments":true}))
+                    .await
+            } else {
+                self.query(
+                    "Comments",
+                    json!({"id":reference,"first":100,"after":pages.cursor}),
+                )
+                .await
+            };
+            let (data, mut error) = match result {
+                Ok(data) => (data, None),
+                Err(mut e) => (e.data.take().unwrap_or(Value::Null), Some(e)),
+            };
+            if first {
+                if data["issue"].is_null() {
+                    return Err(
+                        error.unwrap_or_else(|| AppError::new("not_found", "Issue not found"))
+                    );
+                }
+                issue = crate::model::normalize(data["issue"].clone());
+                first = false;
+            }
+            if let Err(e) = pages.ingest(&data["issue"]["comments"])
+                && error.is_none()
+            {
+                error = Some(e);
+            }
+            if error.is_some() || !pages.has_more() {
+                // Linear timestamps are UTC ISO-8601. Tie-break equal timestamps by ID.
+                pages.items.sort_by(|a, b| {
+                    a["created_at"]
+                        .as_str()
+                        .cmp(&b["created_at"].as_str())
+                        .then_with(|| a["id"].as_str().cmp(&b["id"].as_str()))
+                });
+                issue["comments"] = pages.items.into();
+                let complete = error.is_none() && pages.meta["complete"] == true;
+                if !complete {
+                    pages.meta["complete"] = false.into();
+                }
+                let meta = json!({"complete":complete,"collections":{"comments":pages.meta}});
+                if let Some(mut e) = error {
+                    e.data = Some(issue);
+                    e.meta = Box::new(meta);
+                    return Err(e);
+                }
+                return Reply { data: issue, meta }.decode();
+            }
+        }
+    }
     pub async fn view_issue(&self, reference: &str) -> Result<crate::model::Issue> {
         if reference.trim().is_empty() {
             return Err(AppError::input("Issue reference must not be empty"));
