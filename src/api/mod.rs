@@ -202,17 +202,16 @@ impl ApiClient {
             for category in ["requests", "endpoint-requests", "complexity"] {
                 let remaining = format!("x-ratelimit-{category}-remaining");
                 let reset = format!("x-ratelimit-{category}-reset");
-                if headers.get(&remaining).and_then(|h| h.to_str().ok()) == Some("0") {
-                    if let Some(reset) = headers
+                if headers.get(&remaining).and_then(|h| h.to_str().ok()) == Some("0")
+                    && let Some(reset) = headers
                         .get(&reset)
                         .and_then(|h| h.to_str().ok())
                         .and_then(|s| s.parse::<u64>().ok())
-                    {
-                        let delay = reset
-                            .saturating_sub(now)
-                            .max(e.details["retry_after_ms"].as_u64().unwrap_or(0));
-                        e.details["retry_after_ms"] = delay.into();
-                    }
+                {
+                    let delay = reset
+                        .saturating_sub(now)
+                        .max(e.details["retry_after_ms"].as_u64().unwrap_or(0));
+                    e.details["retry_after_ms"] = delay.into();
                 }
             }
         }

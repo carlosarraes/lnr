@@ -31,7 +31,7 @@ impl Server {
         let s = stop.clone();
         let handle = thread::spawn(move || {
             let mut replies = replies.into_iter();
-            while !s.load(Ordering::Relaxed) {
+            'accept: while !s.load(Ordering::Relaxed) {
                 let Ok((mut stream, _)) = listener.accept() else {
                     thread::sleep(Duration::from_millis(2));
                     continue;
@@ -44,7 +44,8 @@ impl Server {
                 let split = loop {
                     let n = stream.read(&mut buf).unwrap_or(0);
                     if n == 0 {
-                        return;
+                        eprintln!("fixture: ignoring a connection closed before HTTP headers");
+                        continue 'accept;
                     }
                     bytes.extend_from_slice(&buf[..n]);
                     if let Some(p) = bytes.windows(4).position(|w| w == b"\r\n\r\n") {

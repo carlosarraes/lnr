@@ -118,3 +118,10 @@ fn oversized_response_fails() {
             .contains("16 MiB")
     );
 }
+#[test]
+fn closed_probe_connection_does_not_stop_fixture_server() {
+    let s = Server::new(vec![(200, json!({"data":{"viewer":{"id":"u"}}}))]);
+    drop(std::net::TcpStream::connect(s.url.trim_start_matches("http://")).unwrap());
+    let o = s.run(&["auth", "status"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
+}
