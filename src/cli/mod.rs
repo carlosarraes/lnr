@@ -31,6 +31,16 @@ pub async fn run() -> i32 {
         }
         Err(e) => return render_error(AppError::input(e.to_string()), json_mode),
     };
+    if should_launch_tui(
+        &cli,
+        std::io::stdin().is_terminal(),
+        std::io::stdout().is_terminal(),
+    ) {
+        return match crate::tui::run(cli.workspace.as_deref()).await {
+            Ok(()) => 0,
+            Err(e) => render_error(e, false),
+        };
+    }
     if cli.command.is_none() {
         return write_stdout(&Cli::command().render_help().to_string());
     }
@@ -63,4 +73,13 @@ fn write_stdout(text: &str) -> i32 {
         Err(e) if e.kind() == std::io::ErrorKind::BrokenPipe => 0,
         Err(_) => 9,
     }
+}
+
+/// Preserve noninteractive help and explicit machine output.
+pub fn should_launch_tui(cli: &Cli, stdin_tty: bool, stdout_tty: bool) -> bool {
+    cli.command.is_none()
+        && stdin_tty
+        && stdout_tty
+        && !cli.json
+        && !matches!(cli.output, Some(args::Output::Json))
 }

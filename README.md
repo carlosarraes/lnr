@@ -23,9 +23,22 @@ schpet Linear CLI credentials. On macOS, credentials are stored in
 This works in SSH and agent shells without Keychain prompts. Linux defaults to
 Secret Service. Secrets never appear in command output.
 
-The CLI is the first phase. Bare `lnr` currently shows help. The planned Ratatui
-interface will use the same services for an overview, project cards, progress,
-and involvement filters.
+Run `lnr` (or `lnr --workspace SLUG`) in a terminal to open the read-only Ratatui
+project overview. It shows project progress with details below the selected row.
+`m` switches All/Mine; `/` searches project names; `f` filters by team, status,
+and involvement. In filters, Tab changes group, Space toggles, Enter applies,
+and Escape cancels. Mine includes projects you lead, belong to, or have assigned
+issues in.
+
+Use arrows or `j`/`k` to move, Enter to open project issues and discussion, and
+Escape to go back. `n` loads the next page, `r` refreshes, PageUp/PageDown scroll
+details, `?` shows help, and `q` quits the overview. Ctrl-C exits from any screen.
+Counts describe loaded results; incomplete pages are labeled. The minimum
+viewport is 60 columns by 18 rows. Narrow terminals hide secondary columns.
+
+The TUI does not edit Linear data. Existing CLI commands keep their output
+contracts. Redirected input/output and explicit JSON mode never launch the TUI;
+use `lnr --help` for command help.
 
 ## Agent usage
 
