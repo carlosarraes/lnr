@@ -38,13 +38,19 @@ lnr auth status --workspace YOUR_WORKSPACE
 
 Import validates the key's organization before storing it. A different existing
 lnr key requires `--replace`. Configuration follows `XDG_CONFIG_HOME`, falling
-back to `~/.config`; secrets use macOS Keychain or persistent Linux Secret Service. Linux imports of
+back to `~/.config`. macOS stores secrets in `lnr/credentials.json` with mode
+`0600` in a `0700` directory, independent of TTY and Keychain state. Linux defaults
+to persistent Secret Service. `LNR_CREDENTIAL_STORE=file|keyring` overrides the
+backend for import, login, reads, and refresh. `auth status` reports the active store.
+Existing Mac installs must re-run `auth import-linear --workspace SLUG` once to
+populate the file store. Writes are atomic and serialized across agent processes.
+Linux imports of
 upstream keyring credentials require `secret-tool`, matching upstream storage. On headless systems without an
 available keyring, provide `LINEAR_API_KEY`. An explicit `--workspace` conflicts
 with the environment key, preventing accidental cross-workspace actions.
 
 OAuth login uses PKCE and a loopback callback, requests `read,write` as the user,
-and stores rotating tokens in the keyring. It refreshes within five minutes of
+and stores rotating tokens in the selected credential store. It refreshes within five minutes of
 expiry and serializes credential updates across processes. `--no-browser` prints
 the URL without launching a browser; SSH users can forward the callback port.
 Use `--replace` to replace an imported API key. `--client-id` / `LNR_CLIENT_ID`
@@ -54,7 +60,7 @@ The browser consent flow still needs to be completed by the user.
 
 `auth status` without an explicit workspace returns a local
 inventory (`default_workspace`, `workspaces`, `import_default`,
-`importable_workspaces`). With `--workspace`, it verifies that credential against
+`importable_workspaces`, `credential_store`). With `--workspace`, it verifies that credential against
 Linear. Use `auth status --check` to verify the active credential, including
 `LINEAR_API_KEY` when set. Plain inventory does not read or validate that variable. The first
 import/login becomes the default, and a sole configured workspace is selected

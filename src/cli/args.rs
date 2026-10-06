@@ -82,7 +82,7 @@ pub enum AuthCommand {
         /// Configured workspace slug, listed by auth status
         slug: String,
     },
-    /// Sign in through your browser using OAuth with PKCE; store tokens in the OS keyring
+    /// Sign in through your browser using OAuth with PKCE; store tokens in the configured credential store
     Login {
         /// OAuth application client ID; defaults to the original lnr application's ID
         #[arg(
@@ -110,7 +110,7 @@ pub enum AuthCommand {
         #[arg(long)]
         check: bool,
     },
-    /// Import an existing Linear CLI credential into the OS keyring
+    /// Import an existing Linear CLI credential into the configured credential store
     ImportLinear {
         #[arg(long)]
         /// Replace an existing workspace credential

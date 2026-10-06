@@ -88,9 +88,9 @@ pub async fn resolve(workspace: Option<&str>) -> Result<Credential> {
         ));
     }
     let _lock = lock().await?;
-    let key = entry("lnr", ws)?
-        .get_password()
-        .map_err(|e| keyring_error("read", &e))?;
+    let key = store::read(ws)?.ok_or_else(|| AppError::new("authentication", format!(
+        "No credential in the {} store for {ws}. Run: lnr auth import-linear --workspace {ws}. Or sign in with: lnr auth login --workspace {ws}",store::backend().unwrap_or("selected")
+    )))?;
     oauth::resolve_token(ws, key).await
 }
 pub fn load_config() -> Result<Config> {
@@ -124,7 +124,7 @@ pub fn keyring_error(action: &str, error: &keyring::Error) -> AppError {
     AppError::new(
         "configuration",
         format!(
-            "Cannot {action} OS keyring entry ({reason}). On macOS, unlock the login keychain in Keychain Access from your Mac session, then retry. For headless sessions, LINEAR_API_KEY is also supported"
+            "Cannot {action} OS keyring entry ({reason}). For headless access, run: LNR_CREDENTIAL_STORE=file lnr auth import-linear --workspace SLUG, then use LNR_CREDENTIAL_STORE=file for commands. Run lnr auth status to find the slug. Or run: LNR_CREDENTIAL_STORE=file lnr auth login"
         ),
     )
 }
@@ -132,7 +132,7 @@ pub fn inventory() -> Result<serde_json::Value> {
     let config = load_config()?;
     let (default, workspaces) = import::available()?;
     Ok(
-        serde_json::json!({"default_workspace":config.effective_default(),"workspaces":config.workspaces,"import_default":default,"importable_workspaces":workspaces}),
+        serde_json::json!({"default_workspace":config.effective_default(),"workspaces":config.workspaces,"import_default":default,"importable_workspaces":workspaces,"credential_store":store::backend()?}),
     )
 }
 pub fn entry(service: &str, ws: &str) -> Result<keyring::Entry> {
@@ -150,15 +150,16 @@ pub enum AuthResponse {
         workspaces: Vec<String>,
         import_default: Option<String>,
         importable_workspaces: Vec<String>,
+        credential_store: String,
     },
 }
 
 pub mod oauth;
+pub mod store;
 
 // Serialize keyring/config updates and token rotation across agent processes.
 async fn lock() -> Result<std::fs::File> {
-    let dir = config_root()?.join("lnr");
-    std::fs::create_dir_all(&dir)?;
+    let dir = store::private_dir()?;
     let file = std::fs::OpenOptions::new()
         .create(true)
         .truncate(false)
@@ -183,15 +184,13 @@ async fn lock() -> Result<std::fs::File> {
 }
 pub async fn save(workspace: &str, secret: &str, replace: bool) -> Result<()> {
     let _lock = lock().await?;
-    let target = entry("lnr", workspace)?;
-    match target.get_password() {
-        Ok(old) if old != secret && !replace => {
-            return Err(AppError::input(
-                "Workspace already has a different credential; use --replace",
-            ));
-        }
-        Ok(_) | Err(keyring::Error::NoEntry) => (),
-        Err(e) => return Err(keyring_error("inspect", &e)),
+    if let Some(old) = store::read(workspace)?
+        && old != secret
+        && !replace
+    {
+        return Err(AppError::input(
+            "Workspace already has a different credential; use --replace",
+        ));
     }
     let mut config = load_config()?;
     if !config.workspaces.iter().any(|w| w == workspace) {
@@ -208,9 +207,7 @@ pub async fn save(workspace: &str, secret: &str, replace: bool) -> Result<()> {
             .map_err(|_| AppError::new("configuration", "Cannot encode config"))?
             .as_bytes(),
     )?;
-    target
-        .set_password(secret)
-        .map_err(|e| keyring_error("store", &e))?;
+    store::write(workspace, secret)?;
     temp.persist(dir.join("config.toml")).map_err(|_| {
         AppError::new(
             "configuration",

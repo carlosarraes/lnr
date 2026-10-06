@@ -18,8 +18,10 @@ lnr project list --mine --json
 
 Alternatively, provide `LINEAR_API_KEY` through your shell's secret management.
 Do not combine that variable with `--workspace`. Import reads the existing
-schpet Linear CLI credentials and stores a copy in the OS keyring under `lnr`.
-Keys never appear in command output or configuration files.
+schpet Linear CLI credentials. On macOS, credentials are stored in
+`~/.config/lnr/credentials.json` with mode `0600`, inside a `0700` directory.
+This works in SSH and agent shells without Keychain prompts. Linux defaults to
+Secret Service. Secrets never appear in command output.
 
 The CLI is the first phase. Bare `lnr` currently shows help. The planned Ratatui
 interface will use the same services for an overview, project cards, progress,
@@ -94,10 +96,16 @@ workspace is selected automatically; `--workspace` overrides the default.
 `lnr auth status --workspace mondrio` verifies a stored credential with Linear.
 `lnr auth status --check` verifies the active credential, including an environment key.
 
-OAuth uses PKCE, stores access and refresh tokens in the OS keyring, and refreshes
+OAuth uses PKCE, stores access and refresh tokens in the same credential store, and refreshes
 before expiry. To replace an imported API key with OAuth, run
-`lnr auth login --workspace mondrio --replace` in your Mac terminal. Unlock the
-login keychain in Keychain Access if macOS rejects credential access.
+`lnr auth login --workspace mondrio --replace` in your Mac terminal. macOS no longer requires an unlocked keychain.
+
+After upgrading from the Keychain-backed version, run
+`lnr auth import-linear --workspace mondrio` once to populate the file store.
+`lnr auth status` reports the active `credential_store`. `XDG_CONFIG_HOME`
+overrides `~/.config`. Set `LNR_CREDENTIAL_STORE=file` to use the file store on
+Linux, or `LNR_CREDENTIAL_STORE=keyring` to explicitly opt into Keychain/Secret Service.
+Use the same override for import/login and subsequent commands.
 
 The default OAuth client ID and `http://127.0.0.1:8484/callback` come from the
 original lnr implementation. Use `--client-id` or `LNR_CLIENT_ID` for your own

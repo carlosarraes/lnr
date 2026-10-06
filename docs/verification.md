@@ -149,3 +149,32 @@ import error. The native backend remains in use, with more actionable errors.
 Live browser consent and OAuth keyring persistence/refresh have not been exercised
 against the user's account; the user must complete browser consent. No workspace
 mutations or public releases were made during verification.
+
+## Urgent headless credential fix, 2026-10-06
+
+The fleet's follow-up superseded the earlier Keychain preference: interactive
+unlocking did not keep credentials accessible to noninteractive agents. macOS now
+defaults to a private file store regardless of TTY. The file is
+`$XDG_CONFIG_HOME/lnr/credentials.json`, or `~/.config/lnr/credentials.json`, with
+mode `0600` inside a `0700` directory. Linux retains its keyring default.
+`LNR_CREDENTIAL_STORE=file|keyring` selects an explicit backend. All credential
+reads, imports, OAuth login, and OAuth refresh use that backend. There is no
+implicit Keychain access or fallback on the macOS default path.
+
+The existing authentication lock serializes file/config updates and token
+rotation. Writes use a private temporary file and atomic replacement; malformed,
+symlinked, or incorrectly permissioned credential files are rejected without
+printing secrets. Missing credentials provide an import/login command.
+
+Verified 80 Linux tests and 79 macOS tests, Clippy with warnings denied, and
+release builds on both systems. New tests include 15 concurrent imports,
+permissions, fresh-process authentication, symlink rejection, and recovery hints.
+Native Mac tests verified the file and directory sync behavior. Independent
+review found no blocking issue.
+
+Installed on the Mac and re-imported `mondrio` from the old CLI's local credential
+file. Verified the resulting file/directory modes and active file backend.
+Fifteen concurrent noninteractive zsh processes authenticated successfully without
+`LINEAR_API_KEY`, a credential-store override, or a TTY. A headless `linear issue
+list --assignee me --limit 1` also succeeded using the default workspace. Existing
+Keychain entries were left untouched. No Linear workspace data was mutated.

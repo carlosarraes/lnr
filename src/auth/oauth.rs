@@ -1,5 +1,5 @@
 //! Native OAuth authorization code flow with PKCE and rotating refresh tokens.
-use super::{Credential, entry, keyring_error};
+use super::{Credential, store};
 use crate::{
     api::ApiClient,
     error::{AppError, Result},
@@ -255,9 +255,7 @@ pub async fn resolve_token(workspace: &str, key: String) -> Result<Credential> {
     if now().saturating_add(300) >= session.expires_at {
         session.refresh(&http_client()?, TOKEN_URL).await?;
         // Caller holds the cross-process lock until the new rotating token is persisted.
-        entry("lnr", workspace)?
-            .set_password(&session.encode()?)
-            .map_err(|e| keyring_error("save refreshed token to", &e))?;
+        store::write(workspace, &session.encode()?)?;
     }
     Credential::bearer(session.access_token)
 }
