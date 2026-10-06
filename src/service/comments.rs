@@ -1,50 +1,44 @@
 use super::{
     Service,
-    page::{PageRequest, Reply, connection},
+    page::{PageRequest, Pages, Reply},
 };
-use crate::error::{AppError, Result};
+use crate::{
+    error::{AppError, Result},
+    model::{Comment, RelationsPage},
+};
 use serde_json::{Value, json};
-use std::collections::HashSet;
 impl Service {
-    pub async fn list_comments(&self, reference: &str, page: PageRequest) -> Result<Reply> {
-        let mut after = page.after;
-        let mut items = vec![];
-        let mut seen = HashSet::new();
-        if let Some(c) = &after {
-            seen.insert(c.clone());
-        }
+    pub async fn list_comments(
+        &self,
+        reference: &str,
+        page: PageRequest,
+    ) -> Result<Reply<Vec<Comment>>> {
+        page.validate()?;
+        let mut pages = Pages::new(page.after);
         loop {
             let data = match self
                 .query(
                     "Comments",
-                    json!({"id":reference,"first":page.limit,"after":after}),
+                    json!({"id":reference,"first":page.limit,"after":pages.cursor}),
                 )
                 .await
             {
                 Ok(v) => v,
-                Err(mut e) => {
-                    if !items.is_empty() {
-                        e.data = Some(Value::Array(items));
+                Err(e) => {
+                    if let Some(partial) = &e.data {
+                        let _ = pages.ingest(&partial["issue"]["comments"]);
                     }
-                    return Err(e);
+                    return Err(pages.fail(e));
                 }
             };
             if data["issue"].is_null() {
-                return Err(AppError::new("not_found", "Issue not found"));
+                return Err(pages.fail(AppError::new("not_found", "Issue not found")));
             }
-            let (nodes, meta) = connection(&data["issue"]["comments"])?;
-            items.extend(nodes);
-            if !page.all || meta["has_more"] == false {
-                return Ok(Reply {
-                    data: items.into(),
-                    meta: json!({"page":meta,"complete":meta["complete"]}),
-                });
+            if let Err(e) = pages.ingest(&data["issue"]["comments"]) {
+                return Err(pages.fail(e));
             }
-            after = meta["end_cursor"].as_str().map(str::to_owned);
-            if !seen.insert(after.clone().unwrap_or_default()) {
-                let mut e = AppError::new("api", "Pagination cursor repeated");
-                e.data = Some(items.into());
-                return Err(e);
+            if !page.all || !pages.has_more() {
+                return pages.finish().decode();
             }
         }
     }
@@ -53,40 +47,39 @@ impl Service {
         reference: &str,
         page: PageRequest,
         inverse_after: Option<String>,
-    ) -> Result<Reply> {
-        let mut cursors = [page.after, inverse_after];
-        let mut items = [vec![], vec![]];
-        let mut metas = [json!({}), json!({})];
+    ) -> Result<Reply<RelationsPage>> {
+        page.validate()?;
+        let mut pages = [Pages::new(page.after), Pages::new(inverse_after)];
         let mut done = [false, false];
-        let mut seen = [HashSet::new(), HashSet::new()];
-        for i in 0..2 {
-            if let Some(c) = &cursors[i] {
-                seen[i].insert(c.clone());
-            }
-        }
         loop {
-            let data=match self.query("Relations",json!({"id":reference,"first":page.limit,"after":cursors[0],"inverseAfter":cursors[1],"outgoing":!done[0],"incoming":!done[1]})).await{Ok(v)=>v,Err(mut e)=>{e.data=Some(json!({"relations":items[0],"inverse_relations":items[1]}));return Err(e)}};
-            if data["issue"].is_null() {
-                return Err(AppError::new("not_found", "Issue not found"));
+            let result=self.query("Relations",json!({"id":reference,"first":page.limit,"after":pages[0].cursor,"inverseAfter":pages[1].cursor,"outgoing":!done[0],"incoming":!done[1]})).await;
+            let (data, mut error) = match result {
+                Ok(v) => (v, None),
+                Err(mut e) => (e.data.take().unwrap_or(Value::Null), Some(e)),
+            };
+            if data["issue"].is_null() && error.is_none() {
+                error = Some(AppError::new("not_found", "Issue not found"));
             }
             for (i, key) in ["relations", "inverseRelations"].iter().enumerate() {
                 if done[i] {
                     continue;
                 }
-                let (nodes, meta) = connection(&data["issue"][key])?;
-                items[i].extend(nodes);
-                metas[i] = meta;
-                done[i] = metas[i]["has_more"] == false;
-                cursors[i] = metas[i]["end_cursor"].as_str().map(str::to_owned);
-                if page.all && !done[i] && !seen[i].insert(cursors[i].clone().unwrap_or_default()) {
-                    return Err(AppError::new("api", "Pagination cursor repeated"));
+                if let Err(e) = pages[i].ingest(&data["issue"][key])
+                    && error.is_none()
+                {
+                    error = Some(e);
                 }
+                done[i] = pages[i].meta["complete"] == true;
+            }
+            let data = json!({"relations":pages[0].items,"inverse_relations":pages[1].items});
+            let meta = json!({"collections":{"relations":pages[0].meta,"inverse_relations":pages[1].meta},"complete":error.is_none() && done.iter().all(|d|*d)});
+            if let Some(mut e) = error {
+                e.data = Some(data);
+                e.meta = (meta).into();
+                return Err(e);
             }
             if !page.all || done.iter().all(|d| *d) {
-                return Ok(Reply {
-                    data: json!({"relations":items[0],"inverse_relations":items[1]}),
-                    meta: json!({"collections":{"relations":metas[0],"inverse_relations":metas[1]},"complete":done.iter().all(|d|*d)}),
-                });
+                return Reply { data, meta }.decode();
             }
         }
     }

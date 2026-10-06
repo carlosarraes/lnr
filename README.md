@@ -1,5 +1,7 @@
 # lnr
 
+Requires Rust 1.94 or newer.
+
 A Rust CLI for Linear workflows used by agents and humans. Read issue context,
 search work, update issues, add comments, manage relations, and inspect projects
 without writing GraphQL.
@@ -60,3 +62,6 @@ schema. `src/service` contains reusable asynchronous workflows; `src/cli` owns
 argument parsing and presentation.
 
 The reference schema's source and attribution are in [graphql/README.md](graphql/README.md).
+
+See [verification results and known limits](docs/verification.md) for the Linux/macOS
+checks, independent review, and repeatable measurements.

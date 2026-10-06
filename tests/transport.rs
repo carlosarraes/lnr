@@ -8,9 +8,14 @@ fn graphql_partial_error_is_not_success() {
         json!({"data":{"viewer":{"id":"u"}},"errors":[{"message":"denied"}]}),
     )]);
     let o = s.run(&["auth", "status"]);
-    assert_eq!(o.status.code(), Some(8));
+    assert_eq!(
+        o.status.code(),
+        Some(8),
+        "{}",
+        String::from_utf8_lossy(&o.stdout)
+    );
     assert_eq!(value(&o)["data"]["viewer"]["id"], "u");
-    assert_eq!(s.count(), 1);
+    assert_eq!(s.count(), 1, "{}", String::from_utf8_lossy(&o.stdout));
 }
 #[test]
 fn query_retries_then_succeeds() {
@@ -33,16 +38,21 @@ fn mutation_never_retries() {
         Some("mutation { issueDelete(id: \"x\") { success } }"),
         true,
     );
-    assert_eq!(o.status.code(), Some(8));
+    assert_eq!(
+        o.status.code(),
+        Some(8),
+        "{}",
+        String::from_utf8_lossy(&o.stdout)
+    );
     assert_eq!(value(&o)["error"]["code"], "uncertain_mutation");
-    assert_eq!(s.count(), 1);
+    assert_eq!(s.count(), 1, "{}", String::from_utf8_lossy(&o.stdout));
 }
 #[test]
 fn exhausted_rate_limit() {
     let s = Server::new(vec![(429, json!({})), (429, json!({})), (429, json!({}))]);
     let o = s.run(&["auth", "status"]);
     assert_eq!(o.status.code(), Some(6));
-    assert_eq!(s.count(), 3);
+    assert_eq!(s.count(), 3, "{}", String::from_utf8_lossy(&o.stdout));
 }
 #[test]
 fn secrets_are_redacted() {
@@ -85,7 +95,7 @@ fn rate_limit_reset_beyond_budget_returns_without_retry() {
     );
     let o = s.run(&["auth", "status"]);
     assert_eq!(o.status.code(), Some(6));
-    assert_eq!(s.count(), 1);
+    assert_eq!(s.count(), 1, "{}", String::from_utf8_lossy(&o.stdout));
     assert!(
         value(&o)["error"]["details"]["retry_after_ms"]
             .as_u64()
@@ -109,8 +119,13 @@ fn oversized_response_fails() {
         json!({"data":{"large":"x".repeat(16*1024*1024)}}),
     )]);
     let o = s.run(&["auth", "status"]);
-    assert_eq!(o.status.code(), Some(8));
-    assert_eq!(s.count(), 1);
+    assert_eq!(
+        o.status.code(),
+        Some(8),
+        "{}",
+        String::from_utf8_lossy(&o.stdout)
+    );
+    assert_eq!(s.count(), 1, "{}", String::from_utf8_lossy(&o.stdout));
     assert!(
         value(&o)["error"]["message"]
             .as_str()
@@ -124,4 +139,28 @@ fn closed_probe_connection_does_not_stop_fixture_server() {
     drop(std::net::TcpStream::connect(s.url.trim_start_matches("http://")).unwrap());
     let o = s.run(&["auth", "status"]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
+}
+#[test]
+fn interrupted_query_body_is_retried() {
+    let s = Server::truncated_first(vec![
+        (200, json!({"data":{"viewer":{"id":"u"}}})),
+        (200, json!({"data":{"viewer":{"id":"u"}}})),
+    ]);
+    let o = s.run(&["auth", "status"]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
+    assert_eq!(s.count(), 2);
+}
+#[test]
+fn interrupted_mutation_body_is_not_retried() {
+    let s = Server::truncated_first(vec![(
+        200,
+        json!({"data":{"issueDelete":{"success":true}}}),
+    )]);
+    let o = s.run_input(
+        &["api", "--query-file", "-"],
+        Some("mutation { issueDelete(id: \"x\") { success } }"),
+        true,
+    );
+    assert_eq!(value(&o)["error"]["code"], "uncertain_mutation");
+    assert_eq!(s.count(), 1);
 }

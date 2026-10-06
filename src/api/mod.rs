@@ -9,16 +9,46 @@ pub enum OperationKind {
     Query,
     Mutation,
 }
+#[derive(Debug, Clone)]
+pub struct ClientOptions {
+    pub endpoint: String,
+    pub timeout: Duration,
+    pub connect_timeout: Duration,
+    pub max_response_bytes: usize,
+}
+impl Default for ClientOptions {
+    fn default() -> Self {
+        Self {
+            endpoint: "https://api.linear.app/graphql".into(),
+            timeout: Duration::from_secs(30),
+            connect_timeout: Duration::from_secs(5),
+            max_response_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
 #[derive(Clone)]
 pub struct ApiClient {
     http: reqwest::Client,
     credential: Credential,
     url: String,
+    options: ClientOptions,
 }
 impl ApiClient {
     pub fn new(credential: Credential) -> Result<Self> {
-        let url = std::env::var("LNR_API_URL")
-            .unwrap_or_else(|_| "https://api.linear.app/graphql".into());
+        let mut options = ClientOptions::default();
+        if let Ok(url) = std::env::var("LNR_API_URL") {
+            options.endpoint = url;
+        }
+        Self::with_options(credential, options)
+    }
+    pub fn with_options(credential: Credential, options: ClientOptions) -> Result<Self> {
+        if options.timeout.is_zero()
+            || options.connect_timeout.is_zero()
+            || options.max_response_bytes == 0
+        {
+            return Err(AppError::input("Request limits must be positive"));
+        }
+        let url = options.endpoint.clone();
         let parsed = reqwest::Url::parse(&url).map_err(|_| AppError::input("Invalid API URL"))?;
         if parsed.scheme() != "https"
             && !(parsed.scheme() == "http"
@@ -27,7 +57,7 @@ impl ApiClient {
             return Err(AppError::input("API URL requires HTTPS except on loopback"));
         }
         let http = reqwest::Client::builder()
-            .connect_timeout(Duration::from_secs(5))
+            .connect_timeout(options.connect_timeout)
             .redirect(reqwest::redirect::Policy::none())
             .retry(reqwest::retry::never())
             .build()
@@ -36,6 +66,7 @@ impl ApiClient {
             http,
             credential,
             url,
+            options,
         })
     }
     pub async fn execute(
@@ -46,7 +77,7 @@ impl ApiClient {
         kind: OperationKind,
     ) -> Result<Value> {
         let started = Instant::now();
-        let budget = Duration::from_secs(30);
+        let budget = self.options.timeout;
         for attempt in 0..3 {
             let remaining = budget.saturating_sub(started.elapsed());
             let result = tokio::time::timeout(remaining, self.once(query, &variables, name, kind))
@@ -99,7 +130,9 @@ impl ApiClient {
             .json(&json!({"query":query,"variables":variables,"operationName":name}))
             .send()
             .await
-            .map_err(|_| {
+            .map_err(|cause| {
+                let reason = format!("{:?}", cause.without_url())
+                    .replace(self.credential.secret(), "[redacted]");
                 let mut e = AppError::new(
                     if kind == OperationKind::Mutation {
                         "uncertain_mutation"
@@ -109,29 +142,35 @@ impl ApiClient {
                     "Request failed; read current state before retrying an uncertain write",
                 );
                 e.retryable = kind == OperationKind::Query;
+                e.details = (json!({"reason":reason})).into();
                 e
             })?;
         let status = response.status();
         let headers = response.headers().clone();
         let mut bytes = vec![];
         while let Some(chunk) = response.chunk().await.map_err(|_| {
-            AppError::new(
+            let mut e = AppError::new(
                 if kind == OperationKind::Mutation {
                     "uncertain_mutation"
                 } else {
                     "network"
                 },
                 "Response interrupted",
-            )
+            );
+            e.retryable = kind == OperationKind::Query;
+            e
         })? {
-            if bytes.len() + chunk.len() > 16 * 1024 * 1024 {
+            if bytes.len() + chunk.len() > self.options.max_response_bytes {
                 return Err(AppError::new(
                     if kind == OperationKind::Mutation {
                         "uncertain_mutation"
                     } else {
                         "api"
                     },
-                    "Response exceeds 16 MiB limit",
+                    format!(
+                        "Response exceeds configured limit ({} bytes; default 16 MiB)",
+                        self.options.max_response_bytes
+                    ),
                 ));
             }
             bytes.extend_from_slice(&chunk);
@@ -185,7 +224,7 @@ impl ApiClient {
         let mut e = AppError::new(code, message);
         e.retryable = transient && kind == OperationKind::Query;
         e.data = body.get("data").filter(|d| !d.is_null()).cloned();
-        e.details = json!({"http_status":status.as_u16()});
+        e.details = (json!({"http_status":status.as_u16()})).into();
         if let Some(ms) = headers
             .get("retry-after")
             .and_then(|h| h.to_str().ok())

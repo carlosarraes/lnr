@@ -1,13 +1,13 @@
 use super::{
     Service,
-    page::{PageRequest, Reply, connection},
+    page::{PageRequest, Pages, Reply},
 };
 use crate::{
     api::OperationKind,
     error::{AppError, Result},
 };
 use serde_json::{Value, json};
-use std::collections::HashSet;
+
 #[derive(Debug, Default, Clone)]
 pub struct IssueFilter {
     pub team: Option<String>,
@@ -34,55 +34,37 @@ impl Service {
         filter: Value,
         page: PageRequest,
     ) -> Result<Reply> {
-        if !(1..=250).contains(&page.limit) {
-            return Err(AppError::input("Page limit must be 1..250"));
-        }
-        let mut after = page.after;
-        let mut seen = HashSet::new();
-        if let Some(c) = &after {
-            seen.insert(c.clone());
-        }
-        let mut items = vec![];
+        page.validate()?;
+        let mut pages = Pages::new(page.after);
         loop {
             let result = self
                 .query(
                     op,
-                    json!({"filter":filter,"first":page.limit,"after":after}),
+                    json!({"filter":filter,"first":page.limit,"after":pages.cursor}),
                 )
                 .await;
             let data = match result {
                 Ok(v) => v,
-                Err(mut e) => {
-                    if !items.is_empty() {
-                        e.data = Some(Value::Array(items));
+                Err(e) => {
+                    if let Some(partial) = &e.data {
+                        let _ = pages.ingest(&partial[root]);
                     }
-                    return Err(e);
+                    return Err(pages.fail(e));
                 }
             };
-            let (nodes, meta) = match connection(&data[root]) {
-                Ok(v) => v,
-                Err(mut e) => {
-                    e.data = Some(Value::Array(items));
-                    return Err(e);
-                }
-            };
-            items.extend(nodes);
-            let more = meta["has_more"].as_bool().unwrap_or(false);
-            if !page.all || !more {
-                return Ok(Reply {
-                    data: Value::Array(items),
-                    meta: json!({"page":meta,"complete":!more}),
-                });
+            if let Err(e) = pages.ingest(&data[root]) {
+                return Err(pages.fail(e));
             }
-            after = meta["end_cursor"].as_str().map(str::to_owned);
-            if !seen.insert(after.clone().unwrap_or_default()) {
-                let mut e = AppError::new("api", "Pagination cursor repeated");
-                e.data = Some(Value::Array(items));
-                return Err(e);
+            if !page.all || !pages.has_more() {
+                return Ok(pages.finish());
             }
         }
     }
-    pub async fn list_issues(&self, f: IssueFilter, page: PageRequest) -> Result<Reply> {
+    pub async fn list_issues(
+        &self,
+        f: IssueFilter,
+        page: PageRequest,
+    ) -> Result<Reply<Vec<crate::model::Issue>>> {
         let mut filter = json!({});
         let mut team_id = None;
         if let Some(team) = f.team {
@@ -112,6 +94,8 @@ impl Service {
             .contains(&state.as_str())
             {
                 json!({"type":{"eq":state}})
+            } else if super::resolve::is_uuid(&state) {
+                json!({"id":{"eq":state}})
             } else {
                 let team = team_id.as_deref().ok_or_else(|| {
                     AppError::input("State names require --team; state types work across teams")
@@ -125,7 +109,7 @@ impl Service {
             }
             filter["searchableContent"] = json!({"contains":search});
         }
-        self.list("Issues", "issues", filter, page).await
+        self.list("Issues", "issues", filter, page).await?.decode()
     }
     pub async fn view_issue(&self, reference: &str) -> Result<crate::model::Issue> {
         if reference.trim().is_empty() {

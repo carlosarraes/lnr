@@ -23,9 +23,7 @@ pub async fn import_linear(workspace: &str, replace: bool) -> Result<Value> {
                 "Workspace not in Linear credentials",
             ));
         }
-        entry("linear-cli", workspace)?
-            .get_password()
-            .map_err(|_| AppError::new("authentication", "Cannot read Linear keyring entry"))?
+        read_upstream_key(workspace)?
     } else {
         source
             .get(workspace)
@@ -35,7 +33,7 @@ pub async fn import_linear(workspace: &str, replace: bool) -> Result<Value> {
     };
     let credential = Credential::new(key.clone())?;
     let status = Service::new(ApiClient::new(credential)?).status().await?;
-    if status["organization"]["urlKey"].as_str() != Some(workspace) {
+    if status.organization.as_ref().map(|o| o.url_key.as_str()) != Some(workspace) {
         return Err(AppError::new(
             "authentication",
             "Credential belongs to a different workspace",
@@ -86,4 +84,24 @@ pub async fn import_linear(workspace: &str, replace: bool) -> Result<Value> {
     )?;
     std::fs::rename(temp, path)?;
     Ok(json!({"workspace":workspace,"imported":true}))
+}
+
+#[cfg(target_os = "linux")]
+fn read_upstream_key(workspace: &str) -> Result<String> {
+    let output=std::process::Command::new("secret-tool").args(["lookup","service","linear-cli","account",workspace]).output().map_err(|_|AppError::new("authentication","Install secret-tool to read existing Linear Secret Service credentials, or use LINEAR_API_KEY"))?;
+    if !output.status.success() {
+        return Err(AppError::new(
+            "authentication",
+            "Cannot read Linear Secret Service entry",
+        ));
+    }
+    String::from_utf8(output.stdout)
+        .map(|s| s.trim().to_owned())
+        .map_err(|_| AppError::new("authentication", "Invalid keyring entry"))
+}
+#[cfg(not(target_os = "linux"))]
+fn read_upstream_key(workspace: &str) -> Result<String> {
+    entry("linear-cli", workspace)?
+        .get_password()
+        .map_err(|_| AppError::new("authentication", "Cannot read Linear keyring entry"))
 }

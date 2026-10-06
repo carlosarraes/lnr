@@ -17,8 +17,8 @@ impl Service {
             resolved: Default::default(),
         }
     }
-    pub async fn status(&self) -> Result<Value> {
-        self.query("AuthStatus", json!({})).await
+    pub async fn status(&self) -> Result<crate::model::AuthStatus> {
+        crate::model::decode(self.query("AuthStatus", json!({})).await?)
     }
     pub async fn raw_api(
         &self,

@@ -5,9 +5,11 @@ pub struct AppError {
     pub code: String,
     pub message: String,
     pub retryable: bool,
-    pub details: Value,
+    pub details: Box<Value>,
     #[serde(skip)]
     pub data: Option<Value>,
+    #[serde(skip)]
+    pub meta: Box<Value>,
 }
 impl AppError {
     pub fn new(code: &str, message: impl Into<String>) -> Self {
@@ -15,8 +17,9 @@ impl AppError {
             code: code.into(),
             message: message.into(),
             retryable: false,
-            details: json!({}),
+            details: Box::new(json!({})),
             data: None,
+            meta: Box::new(json!({"complete":false})),
         }
     }
     pub fn input(message: impl Into<String>) -> Self {

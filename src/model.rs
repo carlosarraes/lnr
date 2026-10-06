@@ -87,3 +87,65 @@ pub fn decode<T: serde::de::DeserializeOwned>(value: serde_json::Value) -> crate
         crate::error::AppError::new("api", "API data does not match the expected entity shape")
     })
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct IssueContext {
+    #[serde(flatten)]
+    pub issue: Issue,
+    pub children: Vec<Issue>,
+    pub comments: Vec<Comment>,
+    pub relations: Vec<Relation>,
+    pub inverse_relations: Vec<Relation>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct RelationsPage {
+    pub relations: Vec<Relation>,
+    pub inverse_relations: Vec<Relation>,
+}
+/// Normalize built-in response keys; raw GraphQL deliberately bypasses this adapter.
+pub fn normalize(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Array(items) => Value::Array(items.into_iter().map(normalize).collect()),
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(key, value)| {
+                    let mut normalized = String::new();
+                    for c in key.chars() {
+                        if c.is_ascii_uppercase() {
+                            normalized.push('_');
+                            normalized.push(c.to_ascii_lowercase());
+                        } else {
+                            normalized.push(c);
+                        }
+                    }
+                    (normalized, normalize(value))
+                })
+                .collect(),
+        ),
+        other => other,
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Viewer {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct Organization {
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(alias = "urlKey")]
+    pub url_key: String,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AuthStatus {
+    pub viewer: Viewer,
+    #[serde(default)]
+    pub organization: Option<Organization>,
+}

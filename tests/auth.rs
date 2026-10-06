@@ -21,3 +21,13 @@ fn import_requires_explicit_workspace() {
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(s.count(), 0);
 }
+#[test]
+fn auth_status_uses_normalized_fields() {
+    let s = Server::new(vec![(
+        200,
+        serde_json::json!({"data":{"viewer":{"id":"u"},"organization":{"id":"o","name":"Org","urlKey":"workspace"}}}),
+    )]);
+    let o = s.run(&["auth", "status"]);
+    assert!(o.status.success());
+    assert_eq!(value(&o)["data"]["organization"]["url_key"], "workspace");
+}

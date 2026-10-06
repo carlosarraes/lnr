@@ -30,5 +30,5 @@ fn context_partial_error() {
     )]);
     let o = s.run(&["issue", "context", "ENG-1"]);
     assert_eq!(o.status.code(), Some(8));
-    assert_eq!(value(&o)["data"]["issue"]["id"], "i");
+    assert_eq!(value(&o)["data"]["id"], "i");
 }

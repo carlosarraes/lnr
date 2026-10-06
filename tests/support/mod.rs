@@ -22,6 +22,16 @@ impl Server {
         Self::with_headers(replies, String::new())
     }
     pub fn with_headers(replies: Vec<(u16, Value)>, response_headers: String) -> Self {
+        Self::configured(replies, response_headers, false)
+    }
+    pub fn truncated_first(replies: Vec<(u16, Value)>) -> Self {
+        Self::configured(replies, String::new(), true)
+    }
+    fn configured(
+        replies: Vec<(u16, Value)>,
+        response_headers: String,
+        truncate_first: bool,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -31,11 +41,14 @@ impl Server {
         let s = stop.clone();
         let handle = thread::spawn(move || {
             let mut replies = replies.into_iter();
+            let mut first_response = true;
             'accept: while !s.load(Ordering::Relaxed) {
                 let Ok((mut stream, _)) = listener.accept() else {
                     thread::sleep(Duration::from_millis(2));
                     continue;
                 };
+                // Accepted sockets inherit nonblocking mode on macOS, unlike Linux.
+                stream.set_nonblocking(false).unwrap();
                 stream
                     .set_read_timeout(Some(Duration::from_secs(2)))
                     .unwrap();
@@ -76,10 +89,17 @@ impl Server {
                     serde_json::json!({"errors":[{"message":"unexpected request"}]}),
                 ));
                 let body = body.to_string();
+                let length = body.len()
+                    + if first_response && truncate_first {
+                        10
+                    } else {
+                        0
+                    };
+                first_response = false;
                 let _ = write!(
                     stream,
                     "HTTP/1.1 {status} Response\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n{response_headers}\r\n{body}",
-                    body.len()
+                    length
                 );
             }
         });

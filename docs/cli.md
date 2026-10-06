@@ -34,7 +34,8 @@ lnr auth status --workspace YOUR_WORKSPACE
 
 Import validates the key's organization before storing it. A different existing
 lnr key requires `--replace`. Configuration follows `XDG_CONFIG_HOME`, falling
-back to `~/.config`; secrets use the OS keyring. On headless systems without an
+back to `~/.config`; secrets use macOS Keychain or persistent Linux Secret Service. Linux imports of
+upstream keyring credentials require `secret-tool`, matching upstream storage. On headless systems without an
 available keyring, provide `LINEAR_API_KEY`. An explicit `--workspace` conflicts
 with the environment key, preventing accidental cross-workspace actions.
 
@@ -110,7 +111,8 @@ lnr api --query-file request.graphql --operation-name ReadIssues
 ```
 
 Select an operation when a document has several. Variables must be a JSON
-object. Only one input may use stdin. Subscriptions are unsupported. Raw output
+object. Only one input may use stdin. Subscriptions are unsupported. Built-in output uses snake_case fields consistently across lists, views, and
+mutations. Raw output
 preserves GraphQL field names and is wrapped in the standard envelope.
 
 ## Scope and limits
@@ -122,3 +124,6 @@ A request and its retries share a 30-second budget; replies are capped at 16 MiB
 `LNR_API_URL` can select an alternate HTTPS endpoint for development, or HTTP on
 loopback for fixture tests. It receives the selected credential, so set it only
 to an endpoint you control.
+
+The cross-team state-type shortcut currently excludes `duplicate`; use its state
+UUID or raw GraphQL. UUID filters do not require a team lookup.

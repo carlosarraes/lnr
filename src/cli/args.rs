@@ -47,7 +47,7 @@ pub enum Command {
     },
     State {
         #[command(subcommand)]
-        command: CatalogCommand,
+        command: StateCommand,
     },
     Label {
         #[command(subcommand)]
@@ -210,6 +210,7 @@ pub enum RelationCommand {
         #[arg(long)]
         inverse_after: Option<String>,
     },
+    #[command(group(clap::ArgGroup::new("target").required(true).args(["blocks","related","duplicate_of"])))]
     Add {
         reference: String,
         #[arg(long, group = "target")]
@@ -244,6 +245,16 @@ pub enum ProjectCommand {
         reference: String,
         #[command(flatten)]
         filter: Filters,
+        #[command(flatten)]
+        page: Paging,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum StateCommand {
+    List {
+        #[arg(long)]
+        team: String,
         #[command(flatten)]
         page: Paging,
     },

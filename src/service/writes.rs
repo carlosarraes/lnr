@@ -181,20 +181,31 @@ impl Service {
         }
         Ok(input)
     }
-    pub async fn add_comment(&self, reference: &str, body: String) -> Result<Value> {
+    pub async fn add_comment(
+        &self,
+        reference: &str,
+        body: String,
+    ) -> Result<crate::model::Comment> {
         if body.trim().is_empty() {
             return Err(AppError::input("Comment body must not be empty"));
         }
         let id = self.resolve("issue", reference, None).await?;
-        self.mutate(
-            "AddComment",
-            "commentCreate",
-            Some("comment"),
-            json!({"input":{"issueId":id,"body":body}}),
+        crate::model::decode(
+            self.mutate(
+                "AddComment",
+                "commentCreate",
+                Some("comment"),
+                json!({"input":{"issueId":id,"body":body}}),
+            )
+            .await?,
         )
-        .await
     }
-    pub async fn add_relation(&self, source: &str, target: &str, kind: &str) -> Result<Value> {
+    pub async fn add_relation(
+        &self,
+        source: &str,
+        target: &str,
+        kind: &str,
+    ) -> Result<crate::model::Relation> {
         if !["blocks", "related", "duplicate"].contains(&kind) {
             return Err(AppError::input("Unsupported relation type"));
         }
@@ -203,13 +214,15 @@ impl Service {
         if source == target {
             return Err(AppError::input("An issue cannot relate to itself"));
         }
-        self.mutate(
-            "AddRelation",
-            "issueRelationCreate",
-            Some("issueRelation"),
-            json!({"input":{"issueId":source,"relatedIssueId":target,"type":kind}}),
+        crate::model::decode(
+            self.mutate(
+                "AddRelation",
+                "issueRelationCreate",
+                Some("issueRelation"),
+                json!({"input":{"issueId":source,"relatedIssueId":target,"type":kind}}),
+            )
+            .await?,
         )
-        .await
     }
     pub async fn remove_relation(&self, id: &str) -> Result<Value> {
         if !super::resolve::is_uuid(id) {

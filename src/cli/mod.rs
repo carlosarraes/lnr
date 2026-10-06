@@ -49,8 +49,7 @@ pub async fn run() -> i32 {
 fn render_error(error: AppError, json_mode: bool) -> i32 {
     let code = error.exit_code();
     if json_mode {
-        let value =
-            json!({"schema_version":1,"data":error.data,"error":error,"meta":{"complete":false}});
+        let value = json!({"schema_version":1,"data":error.data,"error":error,"meta":error.meta});
         let _ = writeln!(std::io::stdout(), "{value}");
     } else {
         eprintln!("{}: {}", error.code, error.message);

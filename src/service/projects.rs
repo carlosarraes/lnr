@@ -12,7 +12,11 @@ pub struct ProjectFilter {
     pub involvement: Vec<String>,
 }
 impl Service {
-    pub async fn list_projects(&self, f: ProjectFilter, page: PageRequest) -> Result<Reply> {
+    pub async fn list_projects(
+        &self,
+        f: ProjectFilter,
+        page: PageRequest,
+    ) -> Result<Reply<Vec<crate::model::Project>>> {
         let mut filter = json!({});
         if let Some(team) = f.team {
             filter["accessibleTeams"] =
@@ -33,7 +37,9 @@ impl Service {
             }
             filter["or"] = alternatives.into();
         }
-        self.list("Projects", "projects", filter, page).await
+        self.list("Projects", "projects", filter, page)
+            .await?
+            .decode()
     }
     pub async fn view_project(&self, reference: &str) -> Result<crate::model::Project> {
         let id = self.resolve("project", reference, None).await?;
@@ -50,7 +56,7 @@ impl Service {
         reference: &str,
         mut filter: IssueFilter,
         page: PageRequest,
-    ) -> Result<Reply> {
+    ) -> Result<Reply<Vec<crate::model::Issue>>> {
         if filter.project.is_some() {
             return Err(AppError::input(
                 "Project is already specified by the positional argument",

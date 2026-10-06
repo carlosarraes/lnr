@@ -28,7 +28,11 @@ impl Service {
             json!({"name":{"eq":reference}})
         };
         if let Some(team) = team {
-            filter["team"] = json!({"id":{"eq":team}});
+            if kind == "label" {
+                filter["or"] = label_scope(team)["or"].clone();
+            } else {
+                filter["team"] = json!({"id":{"eq":team}});
+            }
         }
         let reply = self
             .list(
@@ -53,7 +57,7 @@ impl Service {
         }
         if nodes.len() > 1 {
             let mut e = AppError::new("ambiguous", format!("Multiple {kind} matches; use an ID"));
-            e.details = json!({"candidates":nodes});
+            e.details = (json!({"candidates":nodes})).into();
             return Err(e);
         }
         let id = nodes[0]["id"]
@@ -83,4 +87,8 @@ pub fn is_uuid(s: &str) -> bool {
                 c.is_ascii_hexdigit()
             }
         })
+}
+
+pub fn label_scope(team: &str) -> serde_json::Value {
+    json!({"or":[{"team":{"id":{"eq":team}}},{"team":{"null":true}}]})
 }

@@ -68,20 +68,19 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                     relations_after,
                     inverse_relations_after,
                 },
-        } => {
-            service
-                .issue_context(
-                    &reference,
-                    crate::service::context::ContextPageRequest {
-                        limit,
-                        comments_after,
-                        children_after,
-                        relations_after,
-                        inverse_relations_after,
-                    },
-                )
-                .await
-        }
+        } => service
+            .issue_context(
+                &reference,
+                crate::service::context::ContextPageRequest {
+                    limit,
+                    comments_after,
+                    children_after,
+                    relations_after,
+                    inverse_relations_after,
+                },
+            )
+            .await
+            .map(crate::service::page::Reply::into_json),
         Command::Issue {
             command: args::IssueCommand::View { reference },
         } => service
@@ -90,7 +89,10 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
             .map(crate::service::page::Reply::data),
         Command::Issue {
             command: args::IssueCommand::List { filter, page },
-        } => service.list_issues(filter.into(), page.into()).await,
+        } => service
+            .list_issues(filter.into(), page.into())
+            .await
+            .map(crate::service::page::Reply::into_json),
         Command::Issue {
             command:
                 args::IssueCommand::Create {
@@ -116,9 +118,10 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
         Command::Issue {
             command: args::IssueCommand::Comment { command },
         } => match command {
-            args::CommentCommand::List { reference, page } => {
-                service.list_comments(&reference, page.into()).await
-            }
+            args::CommentCommand::List { reference, page } => service
+                .list_comments(&reference, page.into())
+                .await
+                .map(crate::service::page::Reply::into_json),
             args::CommentCommand::Add {
                 reference,
                 body_file,
@@ -134,11 +137,10 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                 reference,
                 page,
                 inverse_after,
-            } => {
-                service
-                    .list_relations(&reference, page.into(), inverse_after)
-                    .await
-            }
+            } => service
+                .list_relations(&reference, page.into(), inverse_after)
+                .await
+                .map(crate::service::page::Reply::into_json),
             args::RelationCommand::Remove { id } => service
                 .remove_relation(&id)
                 .await
@@ -173,22 +175,21 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                 mine,
                 involvement,
                 page,
-            } => {
-                service
-                    .list_projects(
-                        crate::service::projects::ProjectFilter {
-                            team,
-                            state,
-                            involvement: if mine {
-                                vec!["lead".into(), "member".into(), "assignee".into()]
-                            } else {
-                                involvement
-                            },
+            } => service
+                .list_projects(
+                    crate::service::projects::ProjectFilter {
+                        team,
+                        state,
+                        involvement: if mine {
+                            vec!["lead".into(), "member".into(), "assignee".into()]
+                        } else {
+                            involvement
                         },
-                        page.into(),
-                    )
-                    .await
-            }
+                    },
+                    page.into(),
+                )
+                .await
+                .map(crate::service::page::Reply::into_json),
             args::ProjectCommand::View { reference } => service
                 .view_project(&reference)
                 .await
@@ -197,15 +198,26 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                 reference,
                 filter,
                 page,
-            } => {
-                service
-                    .project_issues(&reference, filter.into(), page.into())
-                    .await
-            }
+            } => service
+                .project_issues(&reference, filter.into(), page.into())
+                .await
+                .map(crate::service::page::Reply::into_json),
         },
         Command::Team { command } => catalog(&service, "team", command).await,
         Command::User { command } => catalog(&service, "user", command).await,
-        Command::State { command } => catalog(&service, "state", command).await,
+        Command::State {
+            command: args::StateCommand::List { team, page },
+        } => {
+            catalog(
+                &service,
+                "state",
+                args::CatalogCommand::List {
+                    team: Some(team),
+                    page,
+                },
+            )
+            .await
+        }
         Command::Label { command } => catalog(&service, "label", command).await,
         Command::Schema
         | Command::Auth {
@@ -248,7 +260,12 @@ async fn catalog(
     }
     let mut filter = json!({});
     if let Some(team) = team {
-        filter["team"] = json!({"id":{"eq":service.resolve("team",&team,None).await?}});
+        let id = service.resolve("team", &team, None).await?;
+        if kind == "label" {
+            filter = crate::service::resolve::label_scope(&id);
+        } else {
+            filter["team"] = json!({"id":{"eq":id}});
+        }
     }
     let (op, root) = crate::service::resolve::catalog(kind)?;
     service.list(op, root, filter, page.into()).await

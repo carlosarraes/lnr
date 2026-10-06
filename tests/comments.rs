@@ -25,7 +25,7 @@ fn add_comment_reads_stdin() {
 fn comment_list_pages() {
     let s = Server::new(vec![(
         200,
-        json!({"data":{"issue":{"comments":page(json!([{"id":"c"}]),false,None)}}}),
+        json!({"data":{"issue":{"comments":page(json!([{"id":"c","body":"text"}]),false,None)}}}),
     )]);
     let o = s.run(&["issue", "comment", "list", "ENG-1"]);
     assert!(o.status.success(), "{:?}", value(&o));
