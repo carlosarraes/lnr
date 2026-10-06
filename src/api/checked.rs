@@ -15,5 +15,5 @@ macro_rules! checked {
  pub struct $name;
  )*};
 }
-checked!(AuthStatus,Issues,IssueView,Projects,ProjectView,Teams,Users,States,Labels);
+checked!(AuthStatus,Issues,IssueView,Projects,ProjectView,Teams,Users,States,Labels,IssueContext,Comments,Relations);
 pub const DOCUMENT: &str = include_str!("../../graphql/operations.graphql");

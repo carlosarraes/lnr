@@ -10,3 +10,19 @@ query Teams($filter: TeamFilter, $first:Int!, $after:String) { teams(filter:$fil
 query Users($filter: UserFilter, $first:Int!, $after:String) { users(filter:$filter, first:$first, after:$after) { nodes { id name displayName email } pageInfo {...PageInfoFields} } }
 query States($filter: WorkflowStateFilter, $first:Int!, $after:String) { workflowStates(filter:$filter, first:$first, after:$after) { nodes { id name type } pageInfo {...PageInfoFields} } }
 query Labels($filter: IssueLabelFilter, $first:Int!, $after:String) { issueLabels(filter:$filter, first:$first, after:$after) { nodes { id name } pageInfo {...PageInfoFields} } }
+fragment CommentFields on Comment { id body createdAt user { id name } }
+fragment RelationFields on IssueRelation { id type issue { id identifier title } relatedIssue { id identifier title } }
+query IssueContext($id:String!, $limit:Int!, $commentsAfter:String, $childrenAfter:String, $relationsAfter:String, $inverseRelationsAfter:String) {
+ issue(id:$id) {
+  ...IssueFields
+  children(first:$limit, after:$childrenAfter) { nodes { id identifier title state { id name type } } pageInfo {...PageInfoFields} }
+  comments(first:$limit, after:$commentsAfter) { nodes {...CommentFields} pageInfo {...PageInfoFields} }
+  relations(first:$limit, after:$relationsAfter) { nodes {...RelationFields} pageInfo {...PageInfoFields} }
+  inverseRelations(first:$limit, after:$inverseRelationsAfter) { nodes {...RelationFields} pageInfo {...PageInfoFields} }
+ }
+}
+query Comments($id:String!, $first:Int!, $after:String) { issue(id:$id) { comments(first:$first, after:$after) { nodes {...CommentFields} pageInfo {...PageInfoFields} } } }
+query Relations($id:String!, $first:Int!, $after:String, $inverseAfter:String) { issue(id:$id) {
+ relations(first:$first,after:$after){ nodes {...RelationFields} pageInfo {...PageInfoFields} }
+ inverseRelations(first:$first,after:$inverseAfter){ nodes {...RelationFields} pageInfo {...PageInfoFields} }
+} }

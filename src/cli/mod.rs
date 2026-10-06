@@ -47,6 +47,7 @@ async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Reply>
             let variables=match variables_file{Some(p)=>serde_json::from_str(&read_body(&p)?).map_err(|_|AppError::input("Invalid variables JSON"))?,None=>json!({})};
             service.raw_api(query,variables,operation_name).await.map(crate::service::page::Reply::data)
         },
+        Command::Issue{command:args::IssueCommand::Context{reference,limit,comments_after,children_after,relations_after,inverse_relations_after}}=>service.issue_context(&reference,crate::service::context::ContextPageRequest{limit,comments_after,children_after,relations_after,inverse_relations_after}).await,
         Command::Issue{command:args::IssueCommand::View{reference}}=>service.view_issue(&reference).await.map(crate::service::page::Reply::data),
         Command::Issue{command:args::IssueCommand::List{filter,page}}=>service.list_issues(filter.into(),page.into()).await,
         Command::Team{command}=>catalog(&service,"team",command).await,

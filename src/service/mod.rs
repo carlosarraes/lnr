@@ -17,3 +17,5 @@ impl Service {
   self.client.execute(&document,variables,name.as_deref(),kind).await
  }
 }
+
+pub mod context;
