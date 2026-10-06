@@ -31,3 +31,14 @@ mutation UpdateIssue($id:String!, $input:IssueUpdateInput!) { issueUpdate(id:$id
 mutation AddComment($input:CommentCreateInput!) { commentCreate(input:$input) { success comment {...CommentFields} } }
 mutation AddRelation($input:IssueRelationCreateInput!) { issueRelationCreate(input:$input) { success issueRelation {...RelationFields} } }
 mutation RemoveRelation($id:String!) { issueRelationDelete(id:$id) { success } }
+query OverviewProjects($filter: ProjectFilter, $first: Int!, $after: String) {
+ projects(filter:$filter,first:$first,after:$after) { nodes {
+ ...ProjectFields
+ lead { id name isMe }
+ teams(first:250) { nodes { id name key } pageInfo { ...PageInfoFields } }
+ members(first:1,filter:{isMe:{eq:true}}) { nodes { id } }
+ issues(first:1,filter:{assignee:{isMe:{eq:true}}}) { nodes { id } }
+ } pageInfo { ...PageInfoFields } }
+}
+query OverviewStatuses($first:Int!, $after:String) { projectStatuses(first:$first,after:$after) { nodes { id name type } pageInfo {...PageInfoFields} } }
+query OverviewTeams($id:String!, $first:Int!, $after:String) { project(id:$id) { teams(first:$first,after:$after) { nodes { id name key } pageInfo {...PageInfoFields} } } }

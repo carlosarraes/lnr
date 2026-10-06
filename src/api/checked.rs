@@ -17,6 +17,9 @@ macro_rules! checked {
 }
 checked!(
     AuthStatus,
+    OverviewProjects,
+    OverviewStatuses,
+    OverviewTeams,
     Issues,
     IssueView,
     Projects,
