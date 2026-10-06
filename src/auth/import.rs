@@ -1,4 +1,4 @@
-use super::{Config, Credential, config_root, entry};
+use super::{Credential, config_root};
 use crate::{
     api::ApiClient,
     error::{AppError, Result},
@@ -39,50 +39,7 @@ pub async fn import_linear(workspace: &str, replace: bool) -> Result<Value> {
             "Credential belongs to a different workspace",
         ));
     }
-    let target = entry("lnr", workspace)?;
-    match target.get_password() {
-        Ok(old) if old != key && !replace => {
-            return Err(AppError::input(
-                "Workspace already has a different key; use --replace",
-            ));
-        }
-        Ok(_) | Err(keyring::Error::NoEntry) => {}
-        Err(_) => {
-            return Err(AppError::new(
-                "configuration",
-                "Cannot inspect lnr keyring entry",
-            ));
-        }
-    }
-    let dir = root.join("lnr");
-    std::fs::create_dir_all(&dir)?;
-    let path = dir.join("config.toml");
-    let mut config: Config = match std::fs::read_to_string(&path) {
-        Ok(s) => {
-            toml::from_str(&s).map_err(|_| AppError::new("configuration", "Invalid lnr config"))?
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Config::default(),
-        Err(e) => return Err(e.into()),
-    };
-    if !config.workspaces.iter().any(|w| w == workspace) {
-        config.workspaces.push(workspace.into());
-    }
-    if config.default.is_none() {
-        config.default = Some(workspace.into());
-    }
-    target.set_password(&key).map_err(|_| {
-        AppError::new(
-            "configuration",
-            "Cannot store key in OS keyring; use LINEAR_API_KEY instead",
-        )
-    })?;
-    let temp = dir.join(format!("config.{}.tmp", std::process::id()));
-    std::fs::write(
-        &temp,
-        toml::to_string(&config)
-            .map_err(|_| AppError::new("configuration", "Cannot encode config"))?,
-    )?;
-    std::fs::rename(temp, path)?;
+    super::save(workspace, &key, replace).await?;
     Ok(json!({"workspace":workspace,"imported":true}))
 }
 
@@ -101,7 +58,42 @@ fn read_upstream_key(workspace: &str) -> Result<String> {
 }
 #[cfg(not(target_os = "linux"))]
 fn read_upstream_key(workspace: &str) -> Result<String> {
-    entry("linear-cli", workspace)?
+    super::entry("linear-cli", workspace)?
         .get_password()
         .map_err(|_| AppError::new("authentication", "Cannot read Linear keyring entry"))
+}
+
+/// Read workspace names only; never expose legacy plaintext API keys.
+pub fn available() -> Result<(Option<String>, Vec<String>)> {
+    let path = config_root()?.join("linear/credentials.toml");
+    let text = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((None, vec![])),
+        Err(e) => return Err(e.into()),
+    };
+    let value: toml::Value = toml::from_str(&text)
+        .map_err(|_| AppError::new("configuration", "Invalid Linear credentials file"))?;
+    let default = value
+        .get("default")
+        .and_then(toml::Value::as_str)
+        .map(str::to_owned);
+    let mut workspaces: Vec<String> =
+        if let Some(items) = value.get("workspaces").and_then(toml::Value::as_array) {
+            items
+                .iter()
+                .filter_map(toml::Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        } else {
+            value
+                .as_table()
+                .into_iter()
+                .flat_map(|t| t.iter())
+                .filter(|(k, v)| k.as_str() != "default" && v.is_str())
+                .map(|(k, _)| k.clone())
+                .collect()
+        };
+    workspaces.sort();
+    workspaces.dedup();
+    Ok((default.filter(|s| workspaces.contains(s)), workspaces))
 }

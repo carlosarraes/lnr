@@ -15,13 +15,45 @@ pub fn read_body(path: &str) -> crate::error::Result<String> {
 pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Reply> {
     use args::{AuthCommand, Command};
     if let Some(Command::Auth {
+        command: AuthCommand::Default { slug },
+    }) = &cli.command
+    {
+        return crate::auth::set_default(slug)
+            .await
+            .map(crate::service::page::Reply::data);
+    }
+    if let Some(Command::Auth {
+        command:
+            AuthCommand::Login {
+                client_id,
+                no_browser,
+                port,
+                timeout,
+                replace,
+            },
+    }) = &cli.command
+    {
+        return crate::auth::oauth::login(
+            client_id,
+            *no_browser,
+            *port,
+            *timeout,
+            cli.workspace.as_deref(),
+            *replace,
+        )
+        .await
+        .map(crate::service::page::Reply::data);
+    }
+    if let Some(Command::Auth {
         command: AuthCommand::ImportLinear { replace },
     }) = &cli.command
     {
-        let workspace = cli
-            .workspace
-            .as_deref()
-            .ok_or_else(|| AppError::input("auth import-linear requires --workspace"))?;
+        let workspace = cli.workspace.as_deref().ok_or_else(|| {
+            let mut e = crate::auth::missing_credentials();
+            e.code = "invalid_input".into();
+            e.message = format!("auth import-linear requires --workspace. {}", e.message);
+            e
+        })?;
         return crate::auth::import::import_linear(workspace, *replace)
             .await
             .map(crate::service::page::Reply::data);
@@ -29,12 +61,21 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
     if matches!(cli.command, Some(Command::Schema)) {
         return Ok(crate::service::page::Reply::data(schema::command_schema()));
     }
-    let service = crate::service::Service::new(crate::api::ApiClient::new(crate::auth::resolve(
-        cli.workspace.as_deref(),
-    )?)?);
+    if matches!(
+        cli.command,
+        Some(Command::Auth {
+            command: AuthCommand::Status { check: false }
+        })
+    ) && cli.workspace.is_none()
+    {
+        return crate::auth::inventory().map(crate::service::page::Reply::data);
+    }
+    let service = crate::service::Service::new(crate::api::ApiClient::new(
+        crate::auth::resolve(cli.workspace.as_deref()).await?,
+    )?);
     match cli.command.unwrap() {
         Command::Auth {
-            command: AuthCommand::Status,
+            command: AuthCommand::Status { .. },
         } => service
             .status()
             .await
@@ -225,7 +266,10 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
         Command::Label { command } => catalog(&service, "label", command).await,
         Command::Schema
         | Command::Auth {
-            command: AuthCommand::ImportLinear { .. },
+            command:
+                AuthCommand::ImportLinear { .. }
+                | AuthCommand::Login { .. }
+                | AuthCommand::Default { .. },
         } => unreachable!("handled before authentication"),
     }
 }

@@ -3,7 +3,7 @@ use support::*;
 #[test]
 fn missing_credentials() {
     let s = Server::new(vec![]);
-    let o = s.run_input(&["auth", "status"], None, false);
+    let o = s.run_input(&["issue", "list"], None, false);
     assert_eq!(o.status.code(), Some(3));
     assert_eq!(s.count(), 0);
 }
@@ -27,7 +27,7 @@ fn auth_status_uses_normalized_fields() {
         200,
         serde_json::json!({"data":{"viewer":{"id":"u"},"organization":{"id":"o","name":"Org","urlKey":"workspace"}}}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(o.status.success());
     assert_eq!(value(&o)["data"]["organization"]["url_key"], "workspace");
 }

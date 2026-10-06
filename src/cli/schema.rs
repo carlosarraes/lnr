@@ -62,7 +62,7 @@ pub fn command_schema() -> Value {
      "issue_view":envelope::<model::IssueView>(),"issue":envelope::<model::Issue>(),"issues":envelope::<Vec<model::Issue>>(),
      "issue_context":envelope::<model::IssueContext>(),"project":envelope::<model::Project>(),"projects":envelope::<Vec<model::Project>>(),
      "comment":envelope::<model::Comment>(),"comments":envelope::<Vec<model::Comment>>(),"relation":envelope::<model::Relation>(),"relations":envelope::<model::RelationsPage>(),
-     "catalog":envelope::<Vec<CatalogEntity>>(),"auth":envelope::<model::AuthStatus>(),"receipt":envelope::<Value>(),"raw":envelope::<Value>(),"discovery":envelope::<Value>()
+     "catalog":envelope::<Vec<CatalogEntity>>(),"auth":envelope::<crate::auth::AuthResponse>(),"receipt":envelope::<Value>(),"raw":envelope::<Value>(),"discovery":envelope::<Value>()
     });
     json!({"commands":commands,"output_schema":envelope::<Value>(),"outputs":outputs,"error_output_schema":envelope::<Value>(),
  "entities":{"issue":schemars::schema_for!(model::Issue),"issue_context":schemars::schema_for!(model::IssueContext),"project":schemars::schema_for!(model::Project),"comment":schemars::schema_for!(model::Comment),"relation":schemars::schema_for!(model::Relation)},
@@ -126,7 +126,7 @@ fn walk(command: &clap::Command, path: &str, result: &mut Vec<Value>) {
         }
         let arguments=command.get_arguments().map(|a|{
    let required=a.is_required_set()||(path=="lnr auth import-linear" && a.get_id()=="workspace");
-   let mut v=json!({"name":a.get_id().as_str(),"long":a.get_long(),"required":required,"global":a.is_global_set(),"action":format!("{:?}",a.get_action()),"defaults":a.get_default_values().iter().map(|s|s.to_string_lossy()).collect::<Vec<_>>(),"possible_values":a.get_value_parser().possible_values().map(|v|v.map(|p|p.get_name().to_owned()).collect::<Vec<_>>()),"conflicts":command.get_arg_conflicts_with(a).iter().map(|a|a.get_id().as_str()).collect::<Vec<_>>()});
+   let mut v=json!({"name":a.get_id().as_str(),"long":a.get_long(),"required":required,"global":a.is_global_set(),"help":a.get_help().map(ToString::to_string),"action":format!("{:?}",a.get_action()),"defaults":a.get_default_values().iter().map(|s|s.to_string_lossy()).collect::<Vec<_>>(),"possible_values":a.get_value_parser().possible_values().map(|v|v.map(|p|p.get_name().to_owned()).collect::<Vec<_>>()),"conflicts":command.get_arg_conflicts_with(a).iter().map(|a|a.get_id().as_str()).collect::<Vec<_>>()});
    match a.get_id().as_str(){"limit"=>{v["minimum"]=1.into();v["maximum"]=if path=="lnr issue context"{100.into()}else{250.into()};v["effective_default"]=if path=="lnr issue context"{20.into()}else{50.into()};},"priority"=>{v["minimum"]=0.into();v["maximum"]=4.into();},_=>{}}
    v
   }).collect::<Vec<_>>();

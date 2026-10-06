@@ -7,7 +7,7 @@ fn graphql_partial_error_is_not_success() {
         200,
         json!({"data":{"viewer":{"id":"u"}},"errors":[{"message":"denied"}]}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert_eq!(
         o.status.code(),
         Some(8),
@@ -26,7 +26,7 @@ fn query_retries_then_succeeds() {
             json!({"data":{"viewer":{"id":"u","name":"Me"},"organization":{"urlKey":"test"}}}),
         ),
     ]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(o.status.success(), "{:?}", value(&o));
     assert_eq!(s.count(), 2);
 }
@@ -50,7 +50,7 @@ fn mutation_never_retries() {
 #[test]
 fn exhausted_rate_limit() {
     let s = Server::new(vec![(429, json!({})), (429, json!({})), (429, json!({}))]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert_eq!(o.status.code(), Some(6));
     assert_eq!(s.count(), 3, "{}", String::from_utf8_lossy(&o.stdout));
 }
@@ -60,7 +60,7 @@ fn secrets_are_redacted() {
         200,
         json!({"errors":[{"message":"bad secret-test-key"}]}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(!String::from_utf8_lossy(&o.stdout).contains("secret-test-key"));
     assert!(!String::from_utf8_lossy(&o.stderr).contains("secret-test-key"));
 }
@@ -70,7 +70,7 @@ fn sends_only_selected_operation() {
         200,
         json!({"data":{"viewer":{"id":"u"},"organization":{"urlKey":"test"}}}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(o.status.success());
     let r = s.requests.lock().unwrap();
     let q = r[0]["query"].as_str().unwrap();
@@ -93,7 +93,7 @@ fn rate_limit_reset_beyond_budget_returns_without_retry() {
             now + 120_000
         ),
     );
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert_eq!(o.status.code(), Some(6));
     assert_eq!(s.count(), 1, "{}", String::from_utf8_lossy(&o.stdout));
     assert!(
@@ -109,7 +109,7 @@ fn partial_data_cannot_echo_credentials() {
         200,
         json!({"data":{"echo":"secret-test-key"},"errors":[{"message":"bad"}]}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(!String::from_utf8_lossy(&o.stdout).contains("secret-test-key"));
 }
 #[test]
@@ -118,7 +118,7 @@ fn oversized_response_fails() {
         200,
         json!({"data":{"large":"x".repeat(16*1024*1024)}}),
     )]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert_eq!(
         o.status.code(),
         Some(8),
@@ -137,7 +137,7 @@ fn oversized_response_fails() {
 fn closed_probe_connection_does_not_stop_fixture_server() {
     let s = Server::new(vec![(200, json!({"data":{"viewer":{"id":"u"}}}))]);
     drop(std::net::TcpStream::connect(s.url.trim_start_matches("http://")).unwrap());
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
 }
 #[test]
@@ -146,7 +146,7 @@ fn interrupted_query_body_is_retried() {
         (200, json!({"data":{"viewer":{"id":"u"}}})),
         (200, json!({"data":{"viewer":{"id":"u"}}})),
     ]);
-    let o = s.run(&["auth", "status"]);
+    let o = s.run(&["auth", "status", "--check"]);
     assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stdout));
     assert_eq!(s.count(), 2);
 }

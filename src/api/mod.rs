@@ -126,7 +126,7 @@ impl ApiClient {
         let mut response = self
             .http
             .post(&self.url)
-            .header("Authorization", self.credential.secret())
+            .header("Authorization", self.credential.authorization())
             .json(&json!({"query":query,"variables":variables,"operationName":name}))
             .send()
             .await
