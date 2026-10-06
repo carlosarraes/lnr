@@ -1,0 +1,12 @@
+fragment PageInfoFields on PageInfo { hasNextPage endCursor }
+fragment IssueFields on Issue { id identifier title url priority description state { id name type } team { id key name } assignee { id name } project { id name } parent { id identifier title } }
+fragment ProjectFields on Project { id name description url progress targetDate state status { id name type } lead { id name } }
+query AuthStatus { viewer { id name email } organization { id name urlKey } }
+query Issues($filter: IssueFilter, $first: Int!, $after: String) { issues(filter:$filter, first:$first, after:$after) { nodes { ...IssueFields } pageInfo { ...PageInfoFields } } }
+query IssueView($id: String!) { issue(id:$id) { ...IssueFields } }
+query Projects($filter: ProjectFilter, $first: Int!, $after: String) { projects(filter:$filter, first:$first, after:$after) { nodes { ...ProjectFields } pageInfo { ...PageInfoFields } } }
+query ProjectView($id: String!) { project(id:$id) { ...ProjectFields } }
+query Teams($filter: TeamFilter, $first:Int!, $after:String) { teams(filter:$filter, first:$first, after:$after) { nodes { id name key } pageInfo {...PageInfoFields} } }
+query Users($filter: UserFilter, $first:Int!, $after:String) { users(filter:$filter, first:$first, after:$after) { nodes { id name displayName email } pageInfo {...PageInfoFields} } }
+query States($filter: WorkflowStateFilter, $first:Int!, $after:String) { workflowStates(filter:$filter, first:$first, after:$after) { nodes { id name type } pageInfo {...PageInfoFields} } }
+query Labels($filter: IssueLabelFilter, $first:Int!, $after:String) { issueLabels(filter:$filter, first:$first, after:$after) { nodes { id name } pageInfo {...PageInfoFields} } }
