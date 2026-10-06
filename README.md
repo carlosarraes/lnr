@@ -48,6 +48,22 @@ error recovery, and raw API access.
 
 ## Development
 
+The justfile follows the build and sync commands used in our other Rust CLIs:
+
+```sh
+just build           # Build and install into ~/.local/bin
+just sync            # Also install on mac, building there when OS/arch differ
+just sync HOST       # Install on another SSH host
+just check           # Formatting, Clippy, and tests
+just release 0.1.0   # From clean, pushed main: verify, tag, push, publish via CI
+```
+
+Sync requires SSH, rsync, and Rust on the destination when building there.
+Release requires Python 3 and the `upstream` Git remote. It updates Cargo's
+package version and lockfile, then pushes the release commit and tag atomically.
+Failed checks leave local changes available to inspect. Release archives contain
+binaries for Linux x86_64 and macOS Apple Silicon and Intel.
+
 ```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
