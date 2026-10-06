@@ -108,65 +108,91 @@ impl Service {
         if !groups.is_empty() {
             filter["and"] = groups.into();
         }
-        let reply = self
+        let (reply, mut failure) = match self
             .list("OverviewProjects", "projects", filter, page)
-            .await?;
+            .await
+        {
+            Ok(reply) => (reply, None),
+            Err(mut e) => {
+                let data = e.data.take().unwrap_or_else(|| json!([]));
+                (
+                    Reply {
+                        data,
+                        meta: (*e.meta).clone(),
+                    },
+                    Some(e),
+                )
+            }
+        };
         let mut result = vec![];
         for node in reply
             .data
             .as_array()
             .ok_or_else(|| AppError::new("api", "Missing project nodes"))?
         {
-            let mut roles = vec![];
-            if node["lead"]["is_me"] == true {
-                roles.push("lead".into());
-            }
-            for (key, role) in [("members", "member"), ("issues", "assignee")] {
-                let nodes = node[key]["nodes"]
-                    .as_array()
-                    .ok_or_else(|| AppError::new("api", "Missing project involvement"))?;
-                if !nodes.is_empty() {
-                    roles.push(role.into());
+            match self.overview_project(node).await {
+                Ok(project) => result.push(project),
+                Err(e) => {
+                    failure = Some(e);
+                    break;
                 }
             }
-            let project: Project = crate::model::decode(node.clone())?;
-            // list() normalizes camelCase recursively; Pages consumes original API keys.
-            let teams_node = &node["teams"];
-            let mut teams: Vec<Entity> = crate::model::decode(teams_node["nodes"].clone())?;
-            if teams_node["page_info"]["has_next_page"] == true {
-                let cursor = teams_node["page_info"]["end_cursor"]
-                    .as_str()
-                    .filter(|s| !s.is_empty())
-                    .ok_or_else(|| AppError::new("api", "Missing project team cursor"))?;
-                let mut pages = Pages::new(Some(cursor.into()));
-                loop {
-                    let data = self
-                        .query(
-                            "OverviewTeams",
-                            json!({"id":project.id,"first":250,"after":pages.cursor}),
-                        )
-                        .await?;
-                    pages.ingest(&data["project"]["teams"])?;
-                    if !pages.has_more() {
-                        break;
-                    }
-                }
-                teams.extend(pages.finish().decode::<Vec<Entity>>()?.data);
-            } else if teams_node["page_info"]["has_next_page"] != false {
-                return Err(AppError::new(
-                    "api",
-                    "Missing project team page information",
-                ));
-            }
-            result.push(OverviewProject {
-                project,
-                teams,
-                involvement: roles,
-            });
+        }
+        if let Some(mut e) = failure {
+            e.data = Some(serde_json::to_value(result).expect("serializable projects"));
+            return Err(e);
         }
         Ok(Reply {
             data: result,
             meta: reply.meta,
+        })
+    }
+    async fn overview_project(&self, node: &Value) -> Result<OverviewProject> {
+        let mut roles = vec![];
+        if node["lead"]["is_me"] == true {
+            roles.push("lead".into());
+        }
+        for (key, role) in [("members", "member"), ("issues", "assignee")] {
+            let nodes = node[key]["nodes"]
+                .as_array()
+                .ok_or_else(|| AppError::new("api", "Missing project involvement"))?;
+            if !nodes.is_empty() {
+                roles.push(role.into());
+            }
+        }
+        let project: Project = crate::model::decode(node.clone())?;
+        // list() normalizes camelCase recursively; Pages consumes original API keys.
+        let teams_node = &node["teams"];
+        let mut teams: Vec<Entity> = crate::model::decode(teams_node["nodes"].clone())?;
+        if teams_node["page_info"]["has_next_page"] == true {
+            let cursor = teams_node["page_info"]["end_cursor"]
+                .as_str()
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| AppError::new("api", "Missing project team cursor"))?;
+            let mut pages = Pages::new(Some(cursor.into()));
+            loop {
+                let data = self
+                    .query(
+                        "OverviewTeams",
+                        json!({"id":project.id,"first":250,"after":pages.cursor}),
+                    )
+                    .await?;
+                pages.ingest(&data["project"]["teams"])?;
+                if !pages.has_more() {
+                    break;
+                }
+            }
+            teams.extend(pages.finish().decode::<Vec<Entity>>()?.data);
+        } else if teams_node["page_info"]["has_next_page"] != false {
+            return Err(AppError::new(
+                "api",
+                "Missing project team page information",
+            ));
+        }
+        Ok(OverviewProject {
+            project,
+            teams,
+            involvement: roles,
         })
     }
 }

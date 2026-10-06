@@ -106,3 +106,40 @@ async fn catalogs_and_project_teams_follow_pages() {
     assert_eq!(r.statuses.len(), 2);
     assert_ne!(r.statuses[0].id, r.statuses[1].id);
 }
+
+#[tokio::test]
+async fn partial_api_error_keeps_typed_available_projects() {
+    let node = json!({"id":"p","progress":null,"teams":page(json!([]),false,None),"members":{"nodes":[]},"issues":{"nodes":[]}});
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"projects":page(json!([node]),true,Some("more"))},"errors":[{"message":"partial"}]}),
+    )]);
+    let error = service(&s)
+        .overview_projects(OverviewFilter::default(), PageRequest::default())
+        .await
+        .unwrap_err();
+    let rows: Vec<lnr::service::project_overview::OverviewProject> =
+        serde_json::from_value(error.data.unwrap()).unwrap();
+    assert_eq!(rows[0].project.id, "p");
+}
+#[tokio::test]
+async fn nested_teams_are_not_silently_truncated() {
+    let node = json!({"id":"p","teams":page(json!([{"id":"t1"}]),true,Some("team2")),"members":{"nodes":[{"id":"me"}]},"issues":{"nodes":[]}});
+    let s = Server::new(vec![
+        (
+            200,
+            json!({"data":{"projects":page(json!([node]),false,None)}}),
+        ),
+        (
+            200,
+            json!({"data":{"project":{"teams":page(json!([{"id":"t2"}]),false,None)}}}),
+        ),
+    ]);
+    let reply = service(&s)
+        .overview_projects(OverviewFilter::default(), PageRequest::default())
+        .await
+        .unwrap();
+    assert_eq!(reply.data[0].teams.len(), 2);
+    assert_eq!(reply.data[0].involvement, vec!["member"]);
+    assert_eq!(s.requests.lock().unwrap()[1]["variables"]["after"], "team2");
+}

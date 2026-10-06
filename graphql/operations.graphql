@@ -35,7 +35,7 @@ query OverviewProjects($filter: ProjectFilter, $first: Int!, $after: String) {
  projects(filter:$filter,first:$first,after:$after) { nodes {
  ...ProjectFields
  lead { id name isMe }
- teams(first:250) { nodes { id name key } pageInfo { ...PageInfoFields } }
+ teams(first:10) { nodes { id name key } pageInfo { ...PageInfoFields } }
  members(first:1,filter:{isMe:{eq:true}}) { nodes { id } }
  issues(first:1,filter:{assignee:{isMe:{eq:true}}}) { nodes { id } }
  } pageInfo { ...PageInfoFields } }
