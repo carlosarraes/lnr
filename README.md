@@ -8,6 +8,8 @@ without writing GraphQL.
 
 ```sh
 cargo install --path . --locked
+lnr auth login
+# Or reuse an existing CLI credential:
 lnr auth import-linear --workspace YOUR_WORKSPACE
 lnr issue list --assignee me --state started --json
 lnr issue context ENG-123 --json
@@ -27,10 +29,12 @@ and involvement filters.
 
 Piped output defaults to JSON. Use `--json` explicitly when invoking from an
 agent's terminal. `lnr schema` describes commands, flags, output shapes, and exit
-codes without authentication. Nothing prompts for input.
+codes without authentication. Only `auth login` requires browser authorization.
 
 ```sh
 lnr issue list --team ENG --search timeout --limit 20 --json
+lnr issue view ENG-123 --json # Includes all comments, newest last
+lnr issue view ENG-123 --no-comments --json
 lnr issue context ENG-123 --limit 10 --json
 lnr issue update ENG-123 --state 'In Progress' --assignee me --json
 lnr issue comment add ENG-123 --body-file report.md --json
@@ -51,7 +55,7 @@ error recovery, and raw API access.
 The justfile follows the build and sync commands used in our other Rust CLIs:
 
 ```sh
-just build           # Build and install into ~/.local/bin
+just build           # Install lnr and a linear symlink into ~/.local/bin
 just sync            # Also install on mac, building there when OS/arch differ
 just sync HOST       # Install on another SSH host
 just check           # Formatting, Clippy, and tests
@@ -81,3 +85,33 @@ The reference schema's source and attribution are in [graphql/README.md](graphql
 
 See [verification results and known limits](docs/verification.md) for the Linux/macOS
 checks, independent review, and repeatable measurements.
+
+## Authentication and agent shells
+
+`lnr auth status` lists configured and importable workspaces without requiring
+keychain access. `lnr auth default mondrio` sets the default. A single configured
+workspace is selected automatically; `--workspace` overrides the default.
+`lnr auth status --workspace mondrio` verifies a stored credential with Linear.
+`lnr auth status --check` verifies the active credential, including an environment key.
+
+OAuth uses PKCE, stores access and refresh tokens in the OS keyring, and refreshes
+before expiry. To replace an imported API key with OAuth, run
+`lnr auth login --workspace mondrio --replace` in your Mac terminal. Unlock the
+login keychain in Keychain Access if macOS rejects credential access.
+
+The default OAuth client ID and `http://127.0.0.1:8484/callback` come from the
+original lnr implementation. Use `--client-id` or `LNR_CLIENT_ID` for your own
+Linear OAuth application and register the callback URL; `--port` changes it.
+For a browser on another machine, forward port 8484 to the host running lnr and
+use `lnr auth login --no-browser`. The authorization URL is printed on stderr.
+
+`just build` and `just sync` install an executable `linear` symlink, so scripts do
+not depend on an interactive alias. Both names use lnr syntax. Ensure zsh agents
+can find them by putting this in `~/.zshenv`:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Existing shells may need to reload their environment. Other shells must inherit
+that PATH or use `~/.local/bin/lnr` directly.

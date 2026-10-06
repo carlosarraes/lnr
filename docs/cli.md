@@ -9,7 +9,8 @@ Do not treat HTTP 200 as proof of success; the CLI checks GraphQL errors and
 mutation success values. Use process exit status before consuming the result.
 
 `--output text` explicitly selects readable output. Help/version and bare `lnr`
-are informational text with exit 0. No prompts occur in command execution.
+are informational text with exit 0. OAuth login prints a browser authorization URL
+on stderr and waits for approval; other commands do not prompt.
 
 | Exit | Meaning |
 | --- | --- |
@@ -25,10 +26,13 @@ are informational text with exit 0. No prompts occur in command execution.
 
 ## Credentials
 
-Set `LINEAR_API_KEY`, or explicitly import an existing Linear CLI workspace:
+Use browser OAuth, set `LINEAR_API_KEY`, or import an existing Linear CLI workspace:
 
 ```sh
+lnr auth login
 lnr auth import-linear --workspace YOUR_WORKSPACE
+lnr auth status
+lnr auth default YOUR_WORKSPACE
 lnr auth status --workspace YOUR_WORKSPACE
 ```
 
@@ -39,10 +43,30 @@ upstream keyring credentials require `secret-tool`, matching upstream storage. O
 available keyring, provide `LINEAR_API_KEY`. An explicit `--workspace` conflicts
 with the environment key, preventing accidental cross-workspace actions.
 
+OAuth login uses PKCE and a loopback callback, requests `read,write` as the user,
+and stores rotating tokens in the keyring. It refreshes within five minutes of
+expiry and serializes credential updates across processes. `--no-browser` prints
+the URL without launching a browser; SSH users can forward the callback port.
+Use `--replace` to replace an imported API key. `--client-id` / `LNR_CLIENT_ID`
+and `--port` configure your own registered OAuth app. Default client ID and
+callback port 8484 are retained from the original Zig lnr implementation.
+The browser consent flow still needs to be completed by the user.
+
+`auth status` without an explicit workspace returns a local
+inventory (`default_workspace`, `workspaces`, `import_default`,
+`importable_workspaces`). With `--workspace`, it verifies that credential against
+Linear. Use `auth status --check` to verify the active credential, including
+`LINEAR_API_KEY` when set. Plain inventory does not read or validate that variable. The first
+import/login becomes the default, and a sole configured workspace is selected
+even if older configuration has no default. `auth default SLUG` changes it.
+
 ## Read workflows
 
 - `issue list`: filters for team, assignee, project, state, and searchable content.
-- `issue view REF`: issue details. Issue identifiers such as `ENG-123` work directly.
+- `issue view REF`: issue details and all comments, oldest first and newest last.
+  `--no-comments` omits discussion. Issue identifiers such as `ENG-123` work directly.
+  Comment pagination is automatic; `meta.collections.comments` reports completeness.
+  Partial failures preserve fetched comments and issue details with a nonzero exit.
 - `issue context REF`: details, parent, project summary, children, comments, and relations.
 - `issue comment list REF`: paged comments.
 - `issue relation list REF`: separate outgoing and incoming relations.

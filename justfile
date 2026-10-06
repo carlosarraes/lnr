@@ -17,6 +17,7 @@ build:
     install -m 755 target/release/{{binary_name}} "$pending"
     "$pending" --version
     mv -f "$pending" "{{install_dir}}/{{binary_name}}"
+    ln -sfn lnr "{{install_dir}}/linear"
     echo "Installed {{binary_name}} -> {{install_dir}}/{{binary_name}}"
 
 # Build locally and install on an SSH host without a release (defaults to mac).
@@ -50,6 +51,7 @@ sync host="mac": build
     install -m 755 "$HOME/$1" "$pending"
     "$pending" --version
     mv -f "$pending" "$HOME/.local/bin/lnr"
+    ln -sfn lnr "$HOME/.local/bin/linear"
     echo "Installed $HOME/.local/bin/lnr"
     "$HOME/.local/bin/lnr" --version
     SH
