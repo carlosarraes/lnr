@@ -63,7 +63,9 @@ def run(keys, auth=True, navigate=False):
             assert proc.poll() is not None, f'exit timeout: {bytes(output)[-500:]!r}' 
             while select.select([master],[],[],.05)[0]:
                 output.extend(os.read(master,65536))
-            assert termios.tcgetattr(slave)==before, 'terminal attributes were not restored'
+            after=termios.tcgetattr(slave)
+            after[3]&=~getattr(termios,'PENDIN',0);before[3]&=~getattr(termios,'PENDIN',0)
+            assert after==before, 'terminal attributes were not restored'
             if auth:
                 assert proc.returncode==0
                 assert b'\x1b[?1049l' in output, 'alternate screen not restored'

@@ -1409,6 +1409,7 @@ dependencies = [
  "ratatui",
  "reqwest",
  "ring",
+ "rustix 0.38.44",
  "schemars",
  "serde",
  "serde_json",

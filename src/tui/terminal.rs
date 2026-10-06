@@ -67,8 +67,12 @@ mod tests {
         if std::env::var_os("LNR_TERMINAL_SETUP_TEST").is_none() {
             return;
         }
+        let (reader, writer) = rustix::pipe::pipe().unwrap();
+        drop(reader);
+        rustix::stdio::dup2_stdout(&writer).unwrap();
         assert!(TerminalSession::enter().is_err());
         assert!(!ACTIVE.load(Ordering::SeqCst));
+        eprintln!("SETUP-RESTORED");
     }
     #[test]
     #[cfg(unix)]
@@ -80,16 +84,18 @@ for mode in ['panic','setup']:
  env=dict(os.environ,TERM='xterm-256color');env['LNR_TERMINAL_'+('PANIC' if mode=='panic' else 'SETUP')+'_TEST']='1'
  def setup():
   os.setsid()
- # A read-only descriptor reliably fails writes on both Linux and macOS.
- sink=open('/dev/null','rb') if mode=='setup' else None
- p=subprocess.Popen([sys.argv[1],'--exact','tui::terminal::tests::'+('panic_child' if mode=='panic' else 'setup_failure_child'),'--nocapture'],stdin=s,stdout=s if sink is None else sink,stderr=s,env=env,preexec_fn=setup)
+ p=subprocess.Popen([sys.argv[1],'--exact','tui::terminal::tests::'+('panic_child' if mode=='panic' else 'setup_failure_child'),'--nocapture'],stdin=s,stdout=s,stderr=s,env=env,preexec_fn=setup)
  data=b'';deadline=time.monotonic()+5
  while p.poll() is None and time.monotonic()<deadline:
   if select.select([m],[],[],.05)[0]:data+=os.read(m,65536)
  assert p.poll() is not None,'child hung'
- assert termios.tcgetattr(s)==before,'raw mode leaked'
+ while select.select([m],[],[],.02)[0]:data+=os.read(m,65536)
+ after=termios.tcgetattr(s)
+ # Darwin sets the kernel-managed PENDIN bit after restoring cooked mode.
+ after[3]&=~getattr(termios,'PENDIN',0);before[3]&=~getattr(termios,'PENDIN',0)
+ assert after==before,'raw mode leaked'
+ if mode=='setup':assert b'SETUP-RESTORED' in data,'setup rollback not exercised'
  if mode=='panic':assert b'\x1b[?1049l' in data,'alternate screen leaked'
- if sink:sink.close()
  os.close(m);os.close(s)
 "#;
         let output = std::process::Command::new("python3")
