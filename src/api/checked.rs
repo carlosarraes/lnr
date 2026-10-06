@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, clippy::upper_case_acronyms)]
 use graphql_client::GraphQLQuery;
 type DateTime = String;
 type TimelessDate = String;
@@ -15,5 +15,23 @@ macro_rules! checked {
  pub struct $name;
  )*};
 }
-checked!(AuthStatus,Issues,IssueView,Projects,ProjectView,Teams,Users,States,Labels,IssueContext,Comments,Relations);
+checked!(
+    AuthStatus,
+    Issues,
+    IssueView,
+    Projects,
+    ProjectView,
+    Teams,
+    Users,
+    States,
+    Labels,
+    IssueContext,
+    Comments,
+    Relations,
+    CreateIssue,
+    UpdateIssue,
+    AddComment,
+    AddRelation,
+    RemoveRelation
+);
 pub const DOCUMENT: &str = include_str!("../../graphql/operations.graphql");

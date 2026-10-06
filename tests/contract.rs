@@ -1,6 +1,10 @@
 use std::process::Command;
 fn run(args: &[&str]) -> std::process::Output {
-    Command::new(env!("CARGO_BIN_EXE_lnr")).env_remove("LINEAR_API_KEY").args(args).output().unwrap()
+    Command::new(env!("CARGO_BIN_EXE_lnr"))
+        .env_remove("LINEAR_API_KEY")
+        .args(args)
+        .output()
+        .unwrap()
 }
 #[test]
 fn help_without_credentials() {
@@ -19,4 +23,19 @@ fn invalid_args_json() {
 fn output_conflict() {
     let o = run(&["--json", "--output", "text", "auth", "status"]);
     assert_eq!(o.status.code(), Some(2));
+}
+#[test]
+fn argument_named_text_does_not_disable_json() {
+    let o = run(&[
+        "issue",
+        "update",
+        "ENG-1",
+        "--title",
+        "text",
+        "--priority",
+        "9",
+    ]);
+    assert_eq!(o.status.code(), Some(2));
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["error"]["code"], "invalid_input");
 }

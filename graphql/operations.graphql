@@ -22,7 +22,12 @@ query IssueContext($id:String!, $limit:Int!, $commentsAfter:String, $childrenAft
  }
 }
 query Comments($id:String!, $first:Int!, $after:String) { issue(id:$id) { comments(first:$first, after:$after) { nodes {...CommentFields} pageInfo {...PageInfoFields} } } }
-query Relations($id:String!, $first:Int!, $after:String, $inverseAfter:String) { issue(id:$id) {
- relations(first:$first,after:$after){ nodes {...RelationFields} pageInfo {...PageInfoFields} }
- inverseRelations(first:$first,after:$inverseAfter){ nodes {...RelationFields} pageInfo {...PageInfoFields} }
+query Relations($id:String!, $first:Int!, $after:String, $inverseAfter:String, $outgoing:Boolean! = true, $incoming:Boolean! = true) { issue(id:$id) {
+ relations(first:$first,after:$after) @include(if:$outgoing) { nodes {...RelationFields} pageInfo {...PageInfoFields} }
+ inverseRelations(first:$first,after:$inverseAfter) @include(if:$incoming) { nodes {...RelationFields} pageInfo {...PageInfoFields} }
 } }
+mutation CreateIssue($input:IssueCreateInput!) { issueCreate(input:$input) { success issue {...IssueFields} } }
+mutation UpdateIssue($id:String!, $input:IssueUpdateInput!) { issueUpdate(id:$id,input:$input) { success issue {...IssueFields} } }
+mutation AddComment($input:CommentCreateInput!) { commentCreate(input:$input) { success comment {...CommentFields} } }
+mutation AddRelation($input:IssueRelationCreateInput!) { issueRelationCreate(input:$input) { success issueRelation {...RelationFields} } }
+mutation RemoveRelation($id:String!) { issueRelationDelete(id:$id) { success } }

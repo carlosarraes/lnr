@@ -1,5 +1,58 @@
-mod support;use support::*;use serde_json::json;
-#[test] fn issue_view_returns_details(){let s=Server::new(vec![(200,json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details"}}}))]);let o=s.run(&["issue","view","ENG-1"]);assert!(o.status.success(),"{:?}",value(&o));assert_eq!(value(&o)["data"]["identifier"],"ENG-1");}
-#[test] fn filters_are_sent_to_server(){let s=Server::new(vec![(200,json!({"data":{"issues":page(json!([]),false,None)}}))]);let o=s.run(&["issue","list","--assignee","me","--state","started","--search","timeout"]);assert!(o.status.success(),"{:?}",value(&o));let r=s.requests.lock().unwrap();assert_eq!(r[0]["variables"]["filter"]["assignee"]["isMe"]["eq"],true);assert_eq!(r[0]["variables"]["filter"]["state"]["type"]["eq"],"started");assert_eq!(r[0]["variables"]["filter"]["searchableContent"]["contains"],"timeout");assert_eq!(r[0]["variables"]["first"],50);}
-#[test] fn absent_issue(){let s=Server::new(vec![(200,json!({"data":{"issue":null}}))]);let o=s.run(&["issue","view","ENG-1"]);assert_eq!(o.status.code(),Some(4));}
-#[test] fn ambiguous_project(){let s=Server::new(vec![(200,json!({"data":{"projects":page(json!([{"id":"a","name":"Same"},{"id":"b","name":"Same"}]),false,None)}}))]);let o=s.run(&["issue","list","--project","Same"]);assert_eq!(o.status.code(),Some(5));assert_eq!(s.count(),1);}
+mod support;
+use serde_json::json;
+use support::*;
+#[test]
+fn issue_view_returns_details() {
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details"}}}),
+    )]);
+    let o = s.run(&["issue", "view", "ENG-1"]);
+    assert!(o.status.success(), "{:?}", value(&o));
+    assert_eq!(value(&o)["data"]["identifier"], "ENG-1");
+}
+#[test]
+fn filters_are_sent_to_server() {
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issues":page(json!([]),false,None)}}),
+    )]);
+    let o = s.run(&[
+        "issue",
+        "list",
+        "--assignee",
+        "me",
+        "--state",
+        "started",
+        "--search",
+        "timeout",
+    ]);
+    assert!(o.status.success(), "{:?}", value(&o));
+    let r = s.requests.lock().unwrap();
+    assert_eq!(r[0]["variables"]["filter"]["assignee"]["isMe"]["eq"], true);
+    assert_eq!(
+        r[0]["variables"]["filter"]["state"]["type"]["eq"],
+        "started"
+    );
+    assert_eq!(
+        r[0]["variables"]["filter"]["searchableContent"]["contains"],
+        "timeout"
+    );
+    assert_eq!(r[0]["variables"]["first"], 50);
+}
+#[test]
+fn absent_issue() {
+    let s = Server::new(vec![(200, json!({"data":{"issue":null}}))]);
+    let o = s.run(&["issue", "view", "ENG-1"]);
+    assert_eq!(o.status.code(), Some(4));
+}
+#[test]
+fn ambiguous_project() {
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"projects":page(json!([{"id":"a","name":"Same"},{"id":"b","name":"Same"}]),false,None)}}),
+    )]);
+    let o = s.run(&["issue", "list", "--project", "Same"]);
+    assert_eq!(o.status.code(), Some(5));
+    assert_eq!(s.count(), 1);
+}
