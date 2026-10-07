@@ -98,3 +98,26 @@ fn help_is_visible_below_minimum_size() {
     assert!(s.contains("Keyboard"));
     assert!(s.contains("quit"));
 }
+
+#[test]
+fn completed_toggle_changes_rows_counts_and_keeps_selected_detail_consistent() {
+    let mut a = app();
+    a.projects.items[0].project.progress = Some(1.0);
+    a.projects.items[0].project.name = Some("Finished project".into());
+    let mut active = a.projects.items[0].clone();
+    active.project.id = "active".into();
+    active.project.name = Some("Active project".into());
+    active.project.progress = Some(0.999);
+    a.projects.items.push(active);
+    a.projects.selected = 1;
+    let s = draw(&mut a, 120, 36);
+    assert!(!s.contains("Finished project"));
+    assert!(s.contains("1 shown"));
+    assert!(s.contains("99%"));
+    assert!(s.contains("tab"));
+    assert!(s.contains("C completed"));
+    a.show_completed = true;
+    let s = draw(&mut a, 120, 36);
+    assert!(s.contains("Finished project"));
+    assert!(s.contains("100%"));
+}

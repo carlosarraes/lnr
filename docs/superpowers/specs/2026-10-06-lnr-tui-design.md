@@ -62,7 +62,9 @@ minimum, and retain Linux/macOS support.
 
 ## Navigation
 
-`j`/`k` and arrows move selection. `m` switches All/My projects. `/` opens
+`j`/`k` and arrows move selection. `Tab` switches All/My projects (`m` remains an alias). Uppercase `C` toggles
+visibility of completed projects without a network request. Projects with progress
+of 1.0 (100%) are hidden initially; missing progress stays visible. `/` opens
 a search line; Enter applies the query and Escape restores it. `f` opens the
 filter overlay. Enter opens
 project issues; Escape returns or dismisses a picker. `r` refreshes. `?` shows

@@ -35,7 +35,7 @@ fn progress(p: Option<f64>, width: usize) -> String {
                 "{}{} {:>3.0}%",
                 "━".repeat(n),
                 "─".repeat(width - n),
-                p * 100.
+                (p * 100.).floor()
             )
         }
         None => "—".into(),
@@ -54,14 +54,11 @@ fn table<T>(
     rows: Vec<Row<'static>>,
     widths: Vec<Constraint>,
     header: Row<'static>,
+    selected: Option<usize>,
 ) {
     let mut state = TableState::default()
         .with_offset(page.offset)
-        .with_selected(if page.items.is_empty() {
-            None
-        } else {
-            Some(page.selected)
-        });
+        .with_selected(selected);
     f.render_stateful_widget(
         Table::new(rows, widths)
             .header(header.style(Style::default().fg(MUTED)).bottom_margin(1))
@@ -94,7 +91,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
             f,
             area,
             if matches!(app.overlay, Some(Overlay::Help)) {
-                "Keyboard\n↑↓ move · enter open · esc back\nm mine · / search · f filter\nn next page · r refresh\nPgUp/PgDn scroll details\n?/esc close · q quit overview\nCtrl-C exit\nResize to at least 60 × 18."
+                "Keyboard\n↑↓ move · enter open · esc back\ntab all/mine · / search · f filter\nC show/hide completed\nn next page · r refresh\nPgUp/PgDn scroll details\n?/esc close · q quit overview\nCtrl-C exit\nResize to at least 60 × 18."
             } else {
                 "Please resize to at least 60 × 18.\nq quit overview · Ctrl-C exit · ? help"
             },
@@ -175,7 +172,16 @@ pub fn render(f: &mut Frame, app: &mut App) {
         )
     } else {
         let page = match app.screen {
-            Screen::Projects => page_status(&app.projects),
+            Screen::Projects => format!(
+                "{} shown · {} · completed {}",
+                app.visible_projects().len(),
+                page_status(&app.projects),
+                if app.show_completed {
+                    "shown"
+                } else {
+                    "hidden"
+                }
+            ),
             Screen::Issues => page_status(&app.issues),
             Screen::Detail => format!("Comments: {}", page_status(&app.comments)),
         };
@@ -212,7 +218,8 @@ pub fn render(f: &mut Frame, app: &mut App) {
             let wide = list.width >= 100;
             let status_visible = list.width >= 74;
             let bar = if wide { 14 } else { 8 };
-            let spaced = list.height >= app.projects.items.len() as u16 * 2 + 2;
+            let visible = app.visible_projects();
+            let spaced = list.height as usize >= visible.len() * 2 + 2;
             let mut widths = vec![Constraint::Min(12)];
             let mut headers = vec![Cell::from("PROJECT")];
             if status_visible {
@@ -225,11 +232,10 @@ pub fn render(f: &mut Frame, app: &mut App) {
                 widths.push(Constraint::Length(12));
                 headers.push(Cell::from("TARGET"));
             }
-            let rows = app
-                .projects
-                .items
+            let rows = visible
                 .iter()
-                .map(|p| {
+                .map(|index| {
+                    let p = &app.projects.items[*index];
                     let mut cells = vec![Cell::from(name(p.project.name.as_deref()))];
                     if status_visible {
                         cells.push(Cell::from(name(
@@ -246,15 +252,28 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     Row::new(cells).bottom_margin(u16::from(spaced))
                 })
                 .collect();
-            table(f, list, &mut app.projects, rows, widths, Row::new(headers));
-            if app.projects.items.is_empty() && !app.loading {
+            let selected = visible.iter().position(|i| *i == app.projects.selected);
+            table(
+                f,
+                list,
+                &mut app.projects,
+                rows,
+                widths,
+                Row::new(headers),
+                selected,
+            );
+            if visible.is_empty() && !app.loading {
                 text(
                     f,
                     list.inner(Margin {
                         horizontal: 0,
                         vertical: 2,
                     }),
-                    "No projects match. / search · f filter",
+                    if app.projects.items.is_empty() {
+                        "No projects match. / search · f filter"
+                    } else {
+                        "No visible projects. C show completed · n next page"
+                    },
                     MUTED,
                 );
             }
@@ -312,6 +331,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     ])
                 })
                 .collect();
+            let selected = (!app.issues.items.is_empty()).then_some(app.issues.selected);
             table(
                 f,
                 main,
@@ -325,6 +345,7 @@ pub fn render(f: &mut Frame, app: &mut App) {
                     Constraint::Length(6),
                 ],
                 Row::new(["ISSUE", "TITLE", "STATUS", "ASSIGNEE", "PRIO"]),
+                selected,
             );
             if app.issues.items.is_empty() && !app.loading {
                 text(f, main, "No issues in this project.", MUTED);
@@ -368,7 +389,11 @@ pub fn render(f: &mut Frame, app: &mut App) {
         f,
         footer,
         if app.screen == Screen::Projects {
-            "↑↓ move   enter open   / search   m mine   f filter   ? help"
+            if footer.width >= 74 {
+                "j/k move  enter open  tab scope  / search  f filter  C completed  ? help"
+            } else {
+                "j/k move  tab scope  / search  C done  ? help"
+            }
         } else {
             "↑↓ move   enter open   esc back   ? help"
         },
@@ -491,7 +516,8 @@ fn help(f: &mut Frame, area: Rect) {
             Line::from("↑↓ / j k    Move selection / scroll issue"),
             Line::from("enter       Open project or issue"),
             Line::from("esc         Back / cancel"),
-            Line::from("m           All / my projects"),
+            Line::from("tab         All / my projects"),
+            Line::from("C           Show / hide 100% completed projects"),
             Line::from("/           Search project names"),
             Line::from("f           Filter team, status, involvement"),
             Line::from("tab / space Filter group / toggle choice"),

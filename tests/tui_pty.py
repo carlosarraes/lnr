@@ -17,6 +17,8 @@ class API(BaseHTTPRequestHandler):
         elif op=='IssueView': data=dict(issue=dict(id='00000000-0000-0000-0000-000000000002',title='Access policy',description='Issue description'))
         elif op=='Comments': data=dict(issue=dict(comments=page([dict(id='c',body='Discussion text',user=None)])))
         else: data={}
+        if op=='OverviewProjects':
+            data['projects']['nodes'].append(dict(id='done',name='Finished-project',progress=1,teams=page([]),members=dict(nodes=[]),issues=dict(nodes=[])))
         body=json.dumps(dict(data=data)).encode();self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers()
         try: self.wfile.write(body)
         except BrokenPipeError: pass
@@ -44,6 +46,11 @@ def run(keys, auth=True, navigate=False):
         try:
             if auth:
                 read_until(b'Workspace permissions')
+                assert b'Finished-project' not in output
+                os.write(master,b'C');read_until(b'Finished-project')
+                os.write(master,b'C')
+                output.clear();os.write(master,b'\t');read_until(b'Workspace permissions')
+                output.clear();os.write(master,b'\t');read_until(b'Workspace permissions')
                 if navigate:
                     os.write(master,b'\r');read_until(b'Access policy')
                     os.write(master,b'\r');read_until(b'text')

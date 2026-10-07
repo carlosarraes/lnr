@@ -241,3 +241,55 @@ fn help_preserves_overview_quit() {
     key(&mut a, K::Char('q'));
     assert!(a.quit);
 }
+
+#[test]
+fn tab_switches_scope_but_remains_filter_group_navigation() {
+    let mut a = loaded();
+    let requests = key(&mut a, K::Tab);
+    assert!(a.filter.mine);
+    assert!(matches!(requests[0].kind, RequestKind::Projects { .. }));
+    key(&mut a, K::Char('f'));
+    assert!(key(&mut a, K::Tab).is_empty());
+    assert!(a.filter.mine);
+    assert!(matches!(a.overlay, Some(Overlay::Filters { group: 1, .. })));
+}
+#[test]
+fn completed_projects_are_hidden_and_c_restores_them_without_network() {
+    let mut a = App::new();
+    let request = a.start().remove(1);
+    let Payload::Projects(mut page) = projects(&["complete", "active", "missing", "complete2"])
+    else {
+        panic!()
+    };
+    page.data[0].project.progress = Some(1.0);
+    page.data[1].project.progress = Some(0.999);
+    page.data[3].project.progress = Some(1.0);
+    a.apply(Response {
+        generation: request.generation,
+        kind: request.kind,
+        result: Ok(Payload::Projects(page)),
+    });
+    assert_eq!(a.visible_projects(), vec![1, 2]);
+    assert_eq!(a.selected_project().unwrap().project.id, "active");
+    assert!(key(&mut a, K::Char('j')).is_empty());
+    assert_eq!(a.selected_project().unwrap().project.id, "missing");
+    key(&mut a, K::Char('j'));
+    assert_eq!(a.selected_project().unwrap().project.id, "missing");
+    assert!(key(&mut a, K::Char('C')).is_empty());
+    assert_eq!(a.visible_projects(), vec![0, 1, 2, 3]);
+    key(&mut a, K::Char('j'));
+    assert_eq!(a.selected_project().unwrap().project.id, "complete2");
+    assert!(key(&mut a, K::Char('C')).is_empty());
+    assert_eq!(a.selected_project().unwrap().project.id, "active");
+}
+#[test]
+fn all_completed_page_has_no_selection_until_shown() {
+    let mut a = loaded();
+    for p in &mut a.projects.items {
+        p.project.progress = Some(1.0);
+    }
+    assert!(a.selected_project().is_none());
+    assert!(key(&mut a, K::Enter).is_empty());
+    key(&mut a, K::Char('C'));
+    assert!(a.selected_project().is_some());
+}

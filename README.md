@@ -25,7 +25,7 @@ Secret Service. Secrets never appear in command output.
 
 Run `lnr` (or `lnr --workspace SLUG`) in a terminal to open the read-only Ratatui
 project overview. It shows project progress with details below the selected row.
-`m` switches All/Mine; `/` searches project names; `f` filters by team, status,
+`Tab` switches All/Mine; `/` searches project names; `f` filters by team, status,
 and involvement. In filters, Tab changes group, Space toggles, Enter applies,
 and Escape cancels. Mine includes projects you lead, belong to, or have assigned
 issues in.
@@ -33,7 +33,9 @@ issues in.
 Use arrows or `j`/`k` to move, Enter to open project issues and discussion, and
 Escape to go back. `n` loads the next page, `r` refreshes, PageUp/PageDown scroll
 details, `?` shows help, and `q` quits the overview. Ctrl-C exits from any screen.
-Counts describe loaded results; incomplete pages are labeled. The minimum
+Projects at 100% progress are hidden by default. Uppercase `C` toggles their
+visibility immediately using loaded data; missing progress remains visible.
+Counts distinguish visible and loaded results; incomplete pages are labeled. The minimum
 viewport is 60 columns by 18 rows. Narrow terminals hide secondary columns.
 
 The TUI does not edit Linear data. Existing CLI commands keep their output

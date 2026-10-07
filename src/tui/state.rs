@@ -139,6 +139,7 @@ pub struct App {
     pub screen: Screen,
     pub overlay: Option<Overlay>,
     pub filter: OverviewFilter,
+    pub show_completed: bool,
     pub catalog: Option<OverviewCatalog>,
     pub catalog_error: Option<String>,
     pub projects: Page<OverviewProject>,
@@ -164,6 +165,7 @@ impl App {
             screen: Screen::Projects,
             overlay: None,
             filter: Default::default(),
+            show_completed: false,
             catalog: None,
             catalog_error: None,
             projects: Default::default(),
@@ -214,8 +216,29 @@ impl App {
         self.scroll = 0;
         self.request_projects(false)
     }
+    pub fn visible_projects(&self) -> Vec<usize> {
+        self.projects
+            .items
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| self.project_visible(p))
+            .map(|(index, _)| index)
+            .collect()
+    }
+    fn project_visible(&self, project: &OverviewProject) -> bool {
+        self.show_completed || !project.project.progress.is_some_and(|p| p >= 1.0)
+    }
+    fn reconcile_projects(&mut self) {
+        if self.selected_project().is_none() {
+            self.projects.selected = self.visible_projects().first().copied().unwrap_or(0);
+            self.projects.offset = 0;
+        }
+    }
     pub fn selected_project(&self) -> Option<&OverviewProject> {
-        self.projects.items.get(self.projects.selected)
+        self.projects
+            .items
+            .get(self.projects.selected)
+            .filter(|p| self.project_visible(p))
     }
     pub fn selected_issue(&self) -> Option<&Issue> {
         self.issues.items.get(self.issues.selected)
@@ -325,6 +348,7 @@ impl App {
                 self.error = Some(e.message);
             }
         }
+        self.reconcile_projects();
     }
     pub fn handle_key(&mut self, event: KeyEvent) -> Vec<Request> {
         if event.kind == KeyEventKind::Release {
@@ -428,9 +452,15 @@ impl App {
                     _ => Screen::Projects,
                 };
             }
-            K::Char('m') if self.screen == Screen::Projects => {
+            K::Tab | K::Char('m') if self.screen == Screen::Projects => {
                 self.filter.mine = !self.filter.mine;
                 return vec![self.changed_scope()];
+            }
+            K::Char('C') if self.screen == Screen::Projects => {
+                self.show_completed = !self.show_completed;
+                self.reconcile_projects();
+                self.projects.offset = 0;
+                self.scroll = 0;
             }
             K::Char('/') if self.screen == Screen::Projects => {
                 self.overlay = Some(Overlay::Search(self.filter.query.clone()))
@@ -449,7 +479,15 @@ impl App {
                     1
                 };
                 match self.screen {
-                    Screen::Projects => self.projects.move_by(delta),
+                    Screen::Projects => {
+                        let visible = self.visible_projects();
+                        if let Some(position) =
+                            visible.iter().position(|i| *i == self.projects.selected)
+                        {
+                            let next = position.saturating_add_signed(delta).min(visible.len() - 1);
+                            self.projects.selected = visible[next];
+                        }
+                    }
                     Screen::Issues => self.issues.move_by(delta),
                     Screen::Detail => self.scroll = self.scroll.saturating_add_signed(delta as i16),
                 };
