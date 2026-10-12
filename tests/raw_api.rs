@@ -36,3 +36,30 @@ fn no_double_stdin() {
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(s.count(), 0);
 }
+#[test]
+fn deprecated_field_error_names_replacement_and_keeps_details() {
+    let s = Server::new(vec![(
+        200,
+        json!({"errors":[{"message":"deprecated","path":["issueSearch"],"extensions":{"code":"INPUT_ERROR","userPresentableMessage":"This endpoint deprecated."}}],"data":null}),
+    )]);
+    let o = s.run_input(
+        &["api", "--query-file", "-"],
+        Some("query { issueSearch(query: \"x\", first: 1) { nodes { id } } }"),
+        true,
+    );
+    assert_eq!(o.status.code(), Some(8));
+    let error = &value(&o)["error"];
+    let message = error["message"].as_str().unwrap();
+    assert!(
+        message.contains("issueSearch") && message.contains("searchIssues"),
+        "{message}"
+    );
+    assert_eq!(
+        error["details"]["graphql_errors"][0]["path"][0],
+        "issueSearch"
+    );
+    assert_eq!(
+        error["details"]["graphql_errors"][0]["extensions"]["code"],
+        "INPUT_ERROR"
+    );
+}

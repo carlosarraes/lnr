@@ -216,15 +216,24 @@ impl ApiClient {
         } else {
             "api"
         };
-        let message = gql_errors
-            .and_then(|es| es.first())
-            .and_then(|e| e["message"].as_str())
-            .unwrap_or("Linear API request failed")
+        let first = gql_errors.and_then(|es| es.first());
+        let message = first
+            .and_then(deprecation_hint)
+            .or_else(|| first.and_then(|e| e["message"].as_str()).map(String::from))
+            .unwrap_or_else(|| "Linear API request failed".into())
             .replace(self.credential.secret(), "[redacted]");
         let mut e = AppError::new(code, message);
         e.retryable = transient && kind == OperationKind::Query;
         e.data = body.get("data").filter(|d| !d.is_null()).cloned();
         e.details = (json!({"http_status":status.as_u16()})).into();
+        if let Some(errors) = gql_errors {
+            e.details["graphql_errors"] = errors
+                .iter()
+                .map(|err| {
+                    json!({"message":err["message"],"path":err["path"],"extensions":err["extensions"]})
+                })
+                .collect();
+        }
         if let Some(ms) = headers
             .get("retry-after")
             .and_then(|h| h.to_str().ok())
@@ -276,3 +285,17 @@ fn redact(value: &mut Value, secret: &str) {
 pub mod checked;
 
 pub mod document;
+
+mod deprecations {
+    include!(concat!(env!("OUT_DIR"), "/deprecations.rs"));
+}
+fn deprecation_hint(error: &Value) -> Option<String> {
+    if error["message"].as_str() != Some("deprecated") {
+        return None;
+    }
+    let field = error.pointer("/path/0")?.as_str()?;
+    deprecations::DEPRECATED_ROOT_FIELDS
+        .iter()
+        .find(|(name, _)| *name == field)
+        .map(|(_, reason)| format!("{field} is deprecated: {reason}"))
+}
