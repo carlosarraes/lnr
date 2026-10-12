@@ -34,6 +34,10 @@ pub struct Issue {
     pub project: Option<Entity>,
     #[serde(default)]
     pub parent: Option<IssueRef>,
+    #[serde(default, alias = "branchName")]
+    pub branch_name: Option<String>,
+    #[serde(default)]
+    pub creator: Option<Entity>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct IssueRef {

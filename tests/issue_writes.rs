@@ -73,3 +73,25 @@ fn conflicting_clear_is_rejected() {
     assert_eq!(o.status.code(), Some(2));
     assert_eq!(s.count(), 0);
 }
+#[test]
+fn create_returns_branch_name_and_creator() {
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issueCreate":{"success":true,"issue":{"id":"i","identifier":"ENG-1","branchName":"carlos/eng-1-fix","creator":{"id":"u","name":"Carlos"}}}}}),
+    )]);
+    let o = s.run(&[
+        "issue",
+        "create",
+        "--team",
+        "00000000-0000-0000-0000-000000000001",
+        "--title",
+        "Fix",
+    ]);
+    assert!(o.status.success(), "{:?}", value(&o));
+    let data = &value(&o)["data"];
+    assert_eq!(data["branch_name"], "carlos/eng-1-fix");
+    assert_eq!(data["creator"]["name"], "Carlos");
+    let r = s.requests.lock().unwrap();
+    let query = r[0]["query"].as_str().unwrap();
+    assert!(query.contains("branchName") && query.contains("creator"));
+}

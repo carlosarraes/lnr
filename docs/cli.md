@@ -73,6 +73,8 @@ even if older configuration has no default. `auth default SLUG` changes it.
   `--no-comments` omits discussion. Issue identifiers such as `ENG-123` work directly.
   Comment pagination is automatic; `meta.collections.comments` reports completeness.
   Partial failures preserve fetched comments and issue details with a nonzero exit.
+- Issue results from `list`, `view`, `create`, and `update` share one shape and
+  include `branch_name` (Linear's suggested git branch) and `creator`.
 - `issue context REF`: details, parent, project summary, children, comments, and relations.
 - `issue comment list REF`: paged comments.
 - `issue relation list REF`: separate outgoing and incoming relations.

@@ -1,5 +1,5 @@
 fragment PageInfoFields on PageInfo { hasNextPage endCursor }
-fragment IssueFields on Issue { id identifier title url priority description state { id name type } team { id key name } assignee { id name } project { id name } parent { id identifier title } }
+fragment IssueFields on Issue { id identifier title url priority description state { id name type } team { id key name } assignee { id name } project { id name } parent { id identifier title } branchName creator { id name } }
 fragment ProjectFields on Project { id name description url progress targetDate state status { id name type } lead { id name } }
 query AuthStatus { viewer { id name email } organization { id name urlKey } }
 query Issues($filter: IssueFilter, $first: Int!, $after: String) { issues(filter:$filter, first:$first, after:$after) { nodes { ...IssueFields } pageInfo { ...PageInfoFields } } }
