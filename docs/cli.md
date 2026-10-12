@@ -142,6 +142,16 @@ lnr api --query-file request.graphql --variables-file variables.json
 lnr api --query-file request.graphql --operation-name ReadIssues
 ```
 
+Prefer dedicated commands before writing GraphQL: `issue relation add` links
+issues, `issue context` returns relations and children, `issue view` includes the
+creator and branch name, and `issue list --search` finds issues by text. Use
+`--query-file -` with a heredoc for one-off queries without a temp file.
+
+GraphQL errors keep Linear's `message`, `path`, and `extensions` in
+`error.details.graphql_errors`. When Linear rejects a deprecated root field, the
+message names the field and the bundled schema's replacement, for example
+`issueSearch is deprecated: ... use searchIssues instead`.
+
 Select an operation when a document has several. Variables must be a JSON
 object. Only one input may use stdin. Subscriptions are unsupported. Built-in output uses snake_case fields consistently across lists, views, and
 mutations. Raw output

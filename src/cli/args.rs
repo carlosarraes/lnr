@@ -60,7 +60,16 @@ pub enum Command {
         #[command(subcommand)]
         command: CatalogCommand,
     },
-    /// Execute GraphQL from a file; '-' reads stdin
+    /// Execute raw GraphQL from a file; '-' reads stdin
+    ///
+    /// Prefer dedicated commands; they accept identifiers such as ENG-123 and names:
+    ///   lnr issue relation add ENG-1 --related|--blocks|--duplicate-of ENG-2
+    ///   lnr issue context ENG-1     parent, children, relations, comments
+    ///   lnr issue view ENG-1        details, creator, branch_name, comments
+    ///   lnr issue list --search TEXT
+    ///
+    /// Multi-line queries without a temp file: lnr api --query-file - <<'EOF' ... EOF
+    #[command(verbatim_doc_comment)]
     Api {
         #[arg(long)]
         /// GraphQL document file; '-' reads stdin
@@ -169,7 +178,7 @@ pub struct Filters {
 }
 #[derive(Debug, Subcommand)]
 pub enum IssueCommand {
-    /// List matching items with cursor pagination
+    /// List issues; filter by team, assignee, project, state, or --search text
     List {
         #[command(flatten)]
         filter: Filters,
@@ -230,7 +239,7 @@ pub enum IssueCommand {
         #[command(subcommand)]
         command: CommentCommand,
     },
-    /// Read, add, or remove issue relations
+    /// Link, unlink, or list issue relations (related, blocks, duplicate)
     Relation {
         #[command(subcommand)]
         command: RelationCommand,
@@ -277,14 +286,14 @@ pub struct WriteFields {
 }
 #[derive(Debug, Subcommand)]
 pub enum CommentCommand {
-    /// List matching items with cursor pagination
+    /// List an issue's comments with cursor pagination
     List {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
         #[command(flatten)]
         page: Paging,
     },
-    /// Add an item to an issue
+    /// Add a comment to an issue; --body-file - reads stdin
     Add {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
@@ -295,7 +304,7 @@ pub enum CommentCommand {
 }
 #[derive(Debug, Subcommand)]
 pub enum RelationCommand {
-    /// List matching items with cursor pagination
+    /// List an issue's links (related, blocks, duplicate) in both directions
     List {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
@@ -306,7 +315,7 @@ pub enum RelationCommand {
         inverse_after: Option<String>,
     },
     #[command(group(clap::ArgGroup::new("target").required(true).args(["blocks","related","duplicate_of"])))]
-    /// Add an item to an issue
+    /// Link two issues (related, blocks, duplicate)
     Add {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
@@ -320,7 +329,7 @@ pub enum RelationCommand {
         /// Original issue identifier or UUID that this issue duplicates
         duplicate_of: Option<String>,
     },
-    /// Delete a relation by its UUID
+    /// Unlink two issues by relation UUID from relation list
     Remove {
         /// Relation UUID to delete, obtained from relation list
         id: String,
@@ -328,7 +337,7 @@ pub enum RelationCommand {
 }
 #[derive(Debug, Subcommand)]
 pub enum ProjectCommand {
-    /// List matching items with cursor pagination
+    /// List projects; filter by team, state, or involvement
     List {
         #[arg(long)]
         /// Team key, exact name, or UUID
@@ -345,7 +354,7 @@ pub enum ProjectCommand {
         #[command(flatten)]
         page: Paging,
     },
-    /// Read one item by reference
+    /// Read a project's progress and details
     View {
         /// Project UUID or exact name
         reference: String,
@@ -363,7 +372,7 @@ pub enum ProjectCommand {
 
 #[derive(Debug, Subcommand)]
 pub enum StateCommand {
-    /// List matching items with cursor pagination
+    /// List a team's workflow states
     List {
         #[arg(long)]
         /// Team key, exact name, or UUID

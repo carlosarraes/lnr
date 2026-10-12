@@ -63,3 +63,12 @@ fn deprecated_field_error_names_replacement_and_keeps_details() {
         "INPUT_ERROR"
     );
 }
+#[test]
+fn api_help_points_to_dedicated_commands() {
+    let s = Server::new(vec![]);
+    let o = s.run(&["api", "--help"]);
+    let help = String::from_utf8_lossy(&o.stdout);
+    for command in ["issue relation add", "issue context", "issue list --search"] {
+        assert!(help.contains(command), "{command} missing from:\n{help}");
+    }
+}
