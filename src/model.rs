@@ -75,6 +75,14 @@ pub struct Comment {
     pub created_at: Option<String>,
     #[serde(default)]
     pub user: Option<Entity>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mentioned_users: Vec<MentionedUser>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct MentionedUser {
+    pub id: String,
+    pub name: String,
+    pub url: String,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Relation {

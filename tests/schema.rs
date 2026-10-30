@@ -8,6 +8,26 @@ fn discovery_needs_no_credentials() {
     let v = value(&o);
     let commands = v["data"]["commands"].as_array().unwrap();
     assert!(commands.iter().any(|c| c["path"] == "lnr issue context"));
+    for (path, output) in [
+        ("lnr issue get", "issue_view"),
+        ("lnr issue comments", "comments"),
+        ("lnr issue comment edit", "comment"),
+        ("lnr issue comment delete", "receipt"),
+    ] {
+        assert!(
+            commands
+                .iter()
+                .any(|c| c["path"] == path && c["output"] == output)
+        );
+    }
+    let edit = commands
+        .iter()
+        .find(|c| c["path"] == "lnr issue comment edit")
+        .unwrap();
+    assert_eq!(
+        edit["constraints"]["exactly_one"],
+        serde_json::json!(["body", "body_file"])
+    );
     assert!(v["data"]["output_schema"].is_object());
     assert_eq!(s.count(), 0);
 }

@@ -56,3 +56,65 @@ fn ambiguous_project() {
     assert_eq!(o.status.code(), Some(5));
     assert_eq!(s.count(), 1);
 }
+
+#[test]
+fn title_filter_combines_with_full_text_and_state() {
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issues":page(json!([{"id":"i","title":"Inconclusive result"}]),false,None)}}),
+    )]);
+    let o = s.run(&[
+        "issue",
+        "list",
+        "--title",
+        "InConclusive",
+        "--search",
+        "timeout",
+        "--state",
+        "started",
+    ]);
+    assert!(o.status.success(), "{:?}", value(&o));
+    assert_eq!(value(&o)["data"][0]["title"], "Inconclusive result");
+    let r = s.requests.lock().unwrap();
+    assert_eq!(
+        r[0]["variables"]["filter"],
+        json!({"title":{"containsIgnoreCase":"InConclusive"},"searchableContent":{"contains":"timeout"},"state":{"type":{"eq":"started"}}})
+    );
+}
+
+#[test]
+fn empty_title_filter_is_rejected_without_network() {
+    let s = Server::new(vec![]);
+    let o = s.run(&["issue", "list", "--title", "  "]);
+    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(s.count(), 0);
+}
+
+#[test]
+fn get_alias_preserves_view_flags_and_output() {
+    for no_comments in [false, true] {
+        let reply = json!({"data":{"issue":{"id":"i","identifier":"ENG-1","comments":page(json!([{"id":"c","body":"Hello"}]),false,None)}}});
+        let s = Server::new(vec![(200, reply.clone()), (200, reply)]);
+        let mut args = vec!["issue", "view", "ENG-1", "--json"];
+        if no_comments {
+            args.push("--no-comments");
+        }
+        let view = s.run(&args);
+        args[1] = "get";
+        let get = s.run(&args);
+        assert!(get.status.success(), "{:?}", value(&get));
+        assert_eq!(value(&get), value(&view));
+        let r = s.requests.lock().unwrap();
+        assert_eq!(r[0], r[1]);
+    }
+}
+
+#[test]
+fn unknown_issue_subcommand_uses_json_error_envelope() {
+    let s = Server::new(vec![]);
+    let o = s.run(&["issue", "unknown", "--json"]);
+    assert_eq!(o.status.code(), Some(2));
+    assert_eq!(value(&o)["schema_version"], 1);
+    assert_eq!(value(&o)["error"]["code"], "invalid_input");
+    assert_eq!(s.count(), 0);
+}

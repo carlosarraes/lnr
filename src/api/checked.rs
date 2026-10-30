@@ -34,6 +34,10 @@ checked!(
     CreateIssue,
     UpdateIssue,
     AddComment,
+    EditComment,
+    DeleteComment,
+    MentionUser,
+    ResolveProjects,
     AddRelation,
     RemoveRelation
 );

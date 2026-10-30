@@ -60,23 +60,29 @@ The browser consent flow still needs to be completed by the user.
 
 `auth status` without an explicit workspace returns a local
 inventory (`default_workspace`, `workspaces`, `import_default`,
-`importable_workspaces`, `credential_store`). With `--workspace`, it verifies that credential against
+`importable_workspaces`, `credential_store`, `active_credential_source`,
+`workspace_hint`). With `--workspace`, it verifies that credential against
 Linear. Use `auth status --check` to verify the active credential, including
-`LINEAR_API_KEY` when set. Plain inventory does not read or validate that variable. The first
+`LINEAR_API_KEY` when set. Plain inventory reports whether that variable is set,
+without reading its value or validating it. An environment key takes precedence
+over the stored default, even when no workspaces are configured locally. The first
 import/login becomes the default, and a sole configured workspace is selected
 even if older configuration has no default. `auth default SLUG` changes it.
 
 ## Read workflows
 
-- `issue list`: filters for team, assignee, project, state, and searchable content.
+- `issue list`: filters for team, assignee, project, state, title, and searchable content.
+  `--title TEXT` matches only titles with a case-insensitive contains filter.
+  `--search TEXT` retains full-text content search; both filters can be combined.
 - `issue view REF`: issue details and all comments, oldest first and newest last.
   `--no-comments` omits discussion. Issue identifiers such as `ENG-123` work directly.
   Comment pagination is automatic; `meta.collections.comments` reports completeness.
   Partial failures preserve fetched comments and issue details with a nonzero exit.
+- `issue get REF`: alias of `issue view`, with the same flags and output.
 - Issue results from `list`, `view`, `create`, and `update` share one shape and
   include `branch_name` (Linear's suggested git branch) and `creator`.
 - `issue context REF`: details, parent, project summary, children, comments, and relations.
-- `issue comment list REF`: paged comments.
+- `issue comment list REF`, or `issue comments REF`: paged comments with the same flags and output.
 - `issue relation list REF`: separate outgoing and incoming relations.
 - `project list`: all accessible projects by default; filter by team, status name, or involvement.
 - `project view REF`: project progress and details.
@@ -87,6 +93,13 @@ Names resolve by exact matching within the applicable scope. Duplicates fail
 with candidates. For issue lists, state types such as `started` work across
 teams; state names such as `In Review` require `--team`. Updates resolve a state
 name using the issue's team. UUIDs avoid name resolution.
+
+Projects also accept case-insensitive exact names, unique name prefixes, and
+slugs from project URLs. Exact matches take precedence over prefixes. Resolution
+reads all project pages before deciding whether a match is unique. Missing or
+ambiguous matches report up to ten candidate names and UUIDs, plus the workspace
+returned by the API. To use another workspace, unset `LINEAR_API_KEY` if set and
+select `--workspace SLUG`.
 
 `project list --mine` includes projects you lead, belong to, or have assigned
 issues in. `--involvement lead,member` chooses specific criteria. The OR filter
@@ -115,10 +128,14 @@ relations. `--all` finishes both directions independently.
 
 ```sh
 lnr issue create --team ENG --title 'Fix timeout' --description-file issue.md
+lnr issue create --team ENG --title 'Fix timeout' --description 'Handle slow responses'
 lnr issue update ENG-123 --title 'Handle slow responses' --priority 2
 lnr issue update ENG-123 --clear-project --unassign
 lnr issue update ENG-123 --labels Bug,Backend
 lnr issue comment add ENG-123 --body-file comment.md
+lnr issue comment add ENG-123 --body 'Please review' --mention carlos --mention ana@example.com
+lnr issue comment edit COMMENT_ID --body-file - < comment.md
+lnr issue comment delete COMMENT_ID
 lnr issue relation add ENG-123 --blocks ENG-456
 lnr issue relation add ENG-123 --related ENG-789
 lnr issue relation add ENG-123 --duplicate-of ENG-321
@@ -130,6 +147,22 @@ Omitted fields stay unchanged. Clear nullable values explicitly with
 `--unassign`. Set/clear conflicts fail locally. Labels replace the issue's label
 set. Priority accepts 0 through 4. Empty updates and empty comments are errors.
 `--blocks` means the source issue blocks the target.
+
+`--description TEXT` works on create and update; it conflicts with
+`--description-file` and `--clear-description`. Comment add and edit require
+exactly one of `--body TEXT` and `--body-file PATH`; `-` reads stdin.
+Comment edit replaces the body and returns the updated comment. Delete returns
+`{"success":true}` only after Linear reports success.
+
+Repeat `--mention NAME` on comment add or edit to resolve users by the same
+UUID, exact name, display name, email, or `me` rules as `--assignee`. The helper
+prepends their profile URLs, separated by spaces and a blank line before the
+original Markdown. Repeated users appear once. The result's `mentioned_users`
+lists the resolved IDs, names, and URLs. These are the public API's
+[documented Markdown mentions](https://linear.app/developers/graphql#adding-mentions-in-markdown);
+the schema marks the alternative `bodyData` format as internal. Notification
+delivery has not been verified through the API, including for edits. The helper
+does not claim a notification receipt.
 
 Writes are never automatically retried. `uncertain_mutation` means the server
 may have applied the operation before the response was lost. Read the current

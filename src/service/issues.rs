@@ -15,6 +15,7 @@ pub struct IssueFilter {
     pub project: Option<String>,
     pub state: Option<String>,
     pub search: Option<String>,
+    pub title: Option<String>,
 }
 impl Service {
     pub(crate) async fn query(&self, op: &str, variables: Value) -> Result<Value> {
@@ -65,6 +66,9 @@ impl Service {
         f: IssueFilter,
         page: PageRequest,
     ) -> Result<Reply<Vec<crate::model::Issue>>> {
+        if f.title.as_ref().is_some_and(|s| s.trim().is_empty()) {
+            return Err(AppError::input("Title filter must not be empty"));
+        }
         let mut filter = json!({});
         let mut team_id = None;
         if let Some(team) = f.team {
@@ -108,6 +112,9 @@ impl Service {
                 return Err(AppError::input("Search must not be empty"));
             }
             filter["searchableContent"] = json!({"contains":search});
+        }
+        if let Some(title) = f.title {
+            filter["title"] = json!({"containsIgnoreCase":title});
         }
         self.list("Issues", "issues", filter, page).await?.decode()
     }

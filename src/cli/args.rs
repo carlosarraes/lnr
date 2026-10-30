@@ -167,18 +167,21 @@ pub struct Filters {
     /// Assignee UUID, exact name, display name, email, or me
     pub assignee: Option<String>,
     #[arg(long)]
-    /// Project UUID or exact name
+    /// Project UUID, case-insensitive exact name, or unique name prefix/slug
     pub project: Option<String>,
     #[arg(long)]
     /// State UUID, exact name (requires --team), or type: triage, backlog, unstarted, started, completed, canceled
     pub state: Option<String>,
     #[arg(long)]
-    /// Search issue content for this text
+    /// Full-text search of issue content
     pub search: Option<String>,
+    #[arg(long)]
+    /// Case-insensitive title-only contains filter; combines with --search
+    pub title: Option<String>,
 }
 #[derive(Debug, Subcommand)]
 pub enum IssueCommand {
-    /// List issues; filter by team, assignee, project, state, or --search text
+    /// List issues; filter by team, assignee, project, state, title, or full-text search
     List {
         #[command(flatten)]
         filter: Filters,
@@ -186,6 +189,7 @@ pub enum IssueCommand {
         page: Paging,
     },
     /// Read an issue and all comments, oldest first; --no-comments skips discussion
+    #[command(visible_alias = "get")]
     View {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
@@ -234,10 +238,17 @@ pub enum IssueCommand {
         #[command(flatten)]
         fields: WriteFields,
     },
-    /// Read or add issue comments
+    /// Read, add, edit, or delete issue comments
     Comment {
         #[command(subcommand)]
         command: CommentCommand,
+    },
+    /// Alias of issue comment list; list comments with cursor pagination
+    Comments {
+        /// Issue identifier such as ENG-123, or UUID
+        reference: String,
+        #[command(flatten)]
+        page: Paging,
     },
     /// Link, unlink, or list issue relations (related, blocks, duplicate)
     Relation {
@@ -257,7 +268,7 @@ pub struct WriteFields {
     /// Remove the assignee
     pub unassign: bool,
     #[arg(long, conflicts_with = "clear_project")]
-    /// Project UUID or exact name
+    /// Project UUID, case-insensitive exact name, or unique name prefix/slug
     pub project: Option<String>,
     #[arg(long)]
     /// Remove the project
@@ -277,6 +288,9 @@ pub struct WriteFields {
     #[arg(long,value_parser=clap::value_parser!(u8).range(0..=4))]
     /// Priority: 0 = none, 1 = urgent, 2 = high, 3 = normal, 4 = low
     pub priority: Option<u8>,
+    #[arg(long, conflicts_with_all = ["description_file", "clear_description"])]
+    /// Markdown description text
+    pub description: Option<String>,
     #[arg(long, conflicts_with = "clear_description")]
     /// Read Markdown description from file; '-' reads stdin
     pub description_file: Option<String>,
@@ -297,10 +311,38 @@ pub enum CommentCommand {
     Add {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
-        #[arg(long)]
-        /// Read Markdown comment from file; '-' reads stdin
-        body_file: String,
+        #[command(flatten)]
+        content: CommentContent,
     },
+    /// Edit a comment by its ID; replaces its body
+    Edit {
+        /// Comment ID from issue view or comment list
+        id: String,
+        #[command(flatten)]
+        content: CommentContent,
+    },
+    /// Delete a comment by its ID
+    Delete {
+        /// Comment ID from issue view or comment list
+        id: String,
+    },
+}
+#[derive(Debug, Args)]
+#[group(skip)]
+pub struct CommentContent {
+    #[arg(
+        long,
+        required_unless_present = "body_file",
+        conflicts_with = "body_file"
+    )]
+    /// Markdown comment text
+    pub body: Option<String>,
+    #[arg(long)]
+    /// Read Markdown comment from file; '-' reads stdin
+    pub body_file: Option<String>,
+    #[arg(long = "mention", action = clap::ArgAction::Append)]
+    /// Prepend a user's profile URL; repeatable, resolves like --assignee; notification delivery is unverified
+    pub mentions: Vec<String>,
 }
 #[derive(Debug, Subcommand)]
 pub enum RelationCommand {
@@ -356,12 +398,12 @@ pub enum ProjectCommand {
     },
     /// Read a project's progress and details
     View {
-        /// Project UUID or exact name
+        /// Project UUID, case-insensitive exact name, or unique name prefix/slug
         reference: String,
     },
     /// List issues belonging to a project
     Issues {
-        /// Project UUID or exact name
+        /// Project UUID, case-insensitive exact name, or unique name prefix/slug
         reference: String,
         #[command(flatten)]
         filter: Filters,

@@ -8,6 +8,82 @@ use crate::{
 };
 use serde_json::{Value, json};
 impl Service {
+    pub async fn add_comment(
+        &self,
+        reference: &str,
+        body: String,
+        mentions: Vec<String>,
+    ) -> Result<Comment> {
+        validate_comment_body(&body)?;
+        let id = self.resolve("issue", reference, None).await?;
+        let (body, mentioned_users) = self.mention_body(body, mentions).await?;
+        let mut comment: Comment = crate::model::decode(
+            self.mutate(
+                "AddComment",
+                "commentCreate",
+                Some("comment"),
+                json!({"input":{"issueId":id,"body":body}}),
+            )
+            .await?,
+        )?;
+        comment.mentioned_users = mentioned_users;
+        Ok(comment)
+    }
+
+    pub async fn edit_comment(
+        &self,
+        id: &str,
+        body: String,
+        mentions: Vec<String>,
+    ) -> Result<Comment> {
+        validate_comment_id(id)?;
+        validate_comment_body(&body)?;
+        let (body, mentioned_users) = self.mention_body(body, mentions).await?;
+        let mut comment: Comment = crate::model::decode(
+            self.mutate(
+                "EditComment",
+                "commentUpdate",
+                Some("comment"),
+                json!({"id":id,"input":{"body":body}}),
+            )
+            .await?,
+        )?;
+        comment.mentioned_users = mentioned_users;
+        Ok(comment)
+    }
+
+    pub async fn delete_comment(&self, id: &str) -> Result<Value> {
+        validate_comment_id(id)?;
+        self.mutate("DeleteComment", "commentDelete", None, json!({"id":id}))
+            .await
+    }
+
+    async fn mention_body(
+        &self,
+        body: String,
+        mentions: Vec<String>,
+    ) -> Result<(String, Vec<crate::model::MentionedUser>)> {
+        let mut users: Vec<crate::model::MentionedUser> = vec![];
+        for reference in mentions {
+            let id = self.resolve("user", &reference, None).await?;
+            if users.iter().any(|u| u.id == id) {
+                continue;
+            }
+            let data = self.query("MentionUser", json!({"id":id})).await?;
+            let user: crate::model::MentionedUser = crate::model::decode(data["user"].clone())?;
+            users.push(user);
+        }
+        if users.is_empty() {
+            return Ok((body, users));
+        }
+        let urls = users
+            .iter()
+            .map(|u| u.url.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        Ok((format!("{urls}\n\n{body}"), users))
+    }
+
     pub async fn list_comments(
         &self,
         reference: &str,
@@ -83,4 +159,18 @@ impl Service {
             }
         }
     }
+}
+
+fn validate_comment_id(id: &str) -> Result<()> {
+    if id.trim().is_empty() {
+        return Err(AppError::input("Comment ID must not be empty"));
+    }
+    Ok(())
+}
+
+fn validate_comment_body(body: &str) -> Result<()> {
+    if body.trim().is_empty() {
+        return Err(AppError::input("Comment body must not be empty"));
+    }
+    Ok(())
 }

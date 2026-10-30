@@ -181,25 +181,6 @@ impl Service {
         }
         Ok(input)
     }
-    pub async fn add_comment(
-        &self,
-        reference: &str,
-        body: String,
-    ) -> Result<crate::model::Comment> {
-        if body.trim().is_empty() {
-            return Err(AppError::input("Comment body must not be empty"));
-        }
-        let id = self.resolve("issue", reference, None).await?;
-        crate::model::decode(
-            self.mutate(
-                "AddComment",
-                "commentCreate",
-                Some("comment"),
-                json!({"input":{"issueId":id,"body":body}}),
-            )
-            .await?,
-        )
-    }
     pub async fn add_relation(
         &self,
         source: &str,

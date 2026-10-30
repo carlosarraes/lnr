@@ -95,3 +95,45 @@ fn create_returns_branch_name_and_creator() {
     let query = r[0]["query"].as_str().unwrap();
     assert!(query.contains("branchName") && query.contains("creator"));
 }
+
+#[test]
+fn inline_description_preserves_text_on_create_and_update() {
+    for (command, mutation) in [("create", "issueCreate"), ("update", "issueUpdate")] {
+        let s = Server::new(vec![(
+            200,
+            json!({"data":{mutation:{"success":true,"issue":{"id":"i","description":"Olá\n\nbody\n"}}}}),
+        )]);
+        let mut args = vec!["issue", command];
+        if command == "create" {
+            args.extend([
+                "--team",
+                "00000000-0000-0000-0000-000000000001",
+                "--title",
+                "Fix",
+            ]);
+        } else {
+            args.push("ENG-1");
+        }
+        args.extend(["--description", "Olá\n\nbody\n"]);
+        let o = s.run(&args);
+        assert!(o.status.success(), "{:?}", value(&o));
+        assert_eq!(value(&o)["data"]["description"], "Olá\n\nbody\n");
+        assert_eq!(
+            s.requests.lock().unwrap()[0]["variables"]["input"]["description"],
+            "Olá\n\nbody\n"
+        );
+    }
+}
+
+#[test]
+fn inline_description_conflicts_with_file_and_clear() {
+    let s = Server::new(vec![]);
+    for conflict in [vec!["--description-file", "-"], vec!["--clear-description"]] {
+        let mut args = vec!["issue", "update", "ENG-1", "--description", "text"];
+        args.extend(conflict);
+        let o = s.run(&args);
+        assert_eq!(o.status.code(), Some(2));
+        assert_eq!(value(&o)["error"]["code"], "invalid_input");
+    }
+    assert_eq!(s.count(), 0);
+}

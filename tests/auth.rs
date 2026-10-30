@@ -31,3 +31,25 @@ fn auth_status_uses_normalized_fields() {
     assert!(o.status.success());
     assert_eq!(value(&o)["data"]["organization"]["url_key"], "workspace");
 }
+
+#[test]
+fn inventory_explains_environment_key_even_without_stored_workspaces() {
+    let s = Server::new(vec![]);
+    let o = s.run(&["auth", "status"]);
+    assert!(o.status.success(), "{:?}", value(&o));
+    let v = value(&o);
+    assert_eq!(v["data"]["active_credential_source"], "LINEAR_API_KEY");
+    assert!(
+        v["data"]["workspace_hint"]
+            .as_str()
+            .unwrap()
+            .contains("auth status --check")
+    );
+    assert!(
+        v["data"]["workspace_hint"]
+            .as_str()
+            .unwrap()
+            .contains("--workspace SLUG")
+    );
+    assert_eq!(s.count(), 0);
+}
