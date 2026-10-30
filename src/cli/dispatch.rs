@@ -161,17 +161,28 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
             .await
             .map(crate::service::page::Reply::data),
         Command::Issue {
+            command: args::IssueCommand::Comments { reference, page },
+        } => service
+            .list_comments(&reference, page.into())
+            .await
+            .map(crate::service::page::Reply::into_json),
+        Command::Issue {
             command: args::IssueCommand::Comment { command },
         } => match command {
             args::CommentCommand::List { reference, page } => service
                 .list_comments(&reference, page.into())
                 .await
                 .map(crate::service::page::Reply::into_json),
-            args::CommentCommand::Add {
-                reference,
-                body_file,
-            } => service
-                .add_comment(&reference, read_body(&body_file)?)
+            args::CommentCommand::Add { reference, content } => service
+                .add_comment(&reference, comment_body(&content)?, content.mentions)
+                .await
+                .map(crate::service::page::Reply::data),
+            args::CommentCommand::Edit { id, content } => service
+                .edit_comment(&id, comment_body(&content)?, content.mentions)
+                .await
+                .map(crate::service::page::Reply::data),
+            args::CommentCommand::Delete { id } => service
+                .delete_comment(&id)
                 .await
                 .map(crate::service::page::Reply::data),
         },
@@ -291,6 +302,7 @@ impl From<args::Filters> for crate::service::issues::IssueFilter {
             project: f.project,
             state: f.state,
             search: f.search,
+            title: f.title,
         }
     }
 }
@@ -342,8 +354,19 @@ fn write_fields(
         labels: patch(f.labels, f.clear_labels),
         priority: f.priority,
         description: patch(
-            f.description_file.map(|p| read_body(&p)).transpose()?,
+            f.description
+                .or(f.description_file.map(|p| read_body(&p)).transpose()?),
             f.clear_description,
         ),
     })
+}
+
+fn comment_body(content: &args::CommentContent) -> crate::error::Result<String> {
+    if let Some(body) = &content.body {
+        Ok(body.clone())
+    } else if let Some(path) = &content.body_file {
+        read_body(path)
+    } else {
+        Err(AppError::input("Specify --body or --body-file"))
+    }
 }

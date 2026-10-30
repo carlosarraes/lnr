@@ -72,12 +72,12 @@ pub fn command_schema() -> Value {
 }
 fn output_name(path: &str) -> &'static str {
     match path {
-        "lnr issue view" => "issue_view",
+        "lnr issue view" | "lnr issue get" => "issue_view",
         "lnr issue create" | "lnr issue update" => "issue",
         "lnr issue list" | "lnr project issues" => "issues",
         "lnr issue context" => "issue_context",
-        "lnr issue comment list" => "comments",
-        "lnr issue comment add" => "comment",
+        "lnr issue comment list" | "lnr issue comments" => "comments",
+        "lnr issue comment add" | "lnr issue comment edit" => "comment",
         "lnr issue relation list" => "relations",
         "lnr issue relation add" => "relation",
         "lnr project list" => "projects",
@@ -120,9 +120,13 @@ fn walk(command: &clap::Command, path: &str, result: &mut Vec<Value>) {
                 "labels",
                 "clear_labels",
                 "priority",
+                "description",
                 "description_file",
                 "clear_description"
             ]);
+        }
+        if path == "lnr issue comment add" || path == "lnr issue comment edit" {
+            constraints["exactly_one"] = json!(["body", "body_file"]);
         }
         let arguments=command.get_arguments().map(|a|{
    let required=a.is_required_set()||(path=="lnr auth import-linear" && a.get_id()=="workspace");
@@ -135,6 +139,9 @@ fn walk(command: &clap::Command, path: &str, result: &mut Vec<Value>) {
     for sub in command.get_subcommands() {
         if sub.get_name() != "help" {
             walk(sub, &format!("{path} {}", sub.get_name()), result);
+            for alias in sub.get_visible_aliases() {
+                walk(sub, &format!("{path} {alias}"), result);
+            }
         }
     }
 }

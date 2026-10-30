@@ -50,11 +50,16 @@ codes without authentication. Only `auth login` requires browser authorization.
 
 ```sh
 lnr issue list --team ENG --search timeout --limit 20 --json
+lnr issue list --project appraiser --title inconclusive --json
 lnr issue view ENG-123 --json # Includes all comments, newest last
+lnr issue get ENG-123 --json # Alias of issue view
 lnr issue view ENG-123 --no-comments --json
 lnr issue context ENG-123 --limit 10 --json
 lnr issue update ENG-123 --state 'In Progress' --assignee me --json
 lnr issue comment add ENG-123 --body-file report.md --json
+lnr issue comments ENG-123 --json # Alias of issue comment list
+lnr issue comment edit COMMENT_ID --body 'Updated report' --mention carlos --json
+lnr issue comment delete COMMENT_ID --json
 lnr issue relation add ENG-123 --blocks ENG-456 --json
 lnr project issues PROJECT_UUID --assignee me --all --json
 ```
@@ -63,6 +68,13 @@ Use file inputs for long text; `--body-file -` and `--description-file -` read
 stdin without changing line breaks. Lists expose cursors; `--all` explicitly
 fetches every page. Context has independent cursors for comments, children,
 outgoing relations, and incoming relations.
+
+`--description TEXT` accepts inline issue descriptions. `--title TEXT` on issue
+lists is a case-insensitive title filter, while `--search TEXT` searches full
+issue content. Projects resolve by case-insensitive exact name or unique
+prefix/slug. Comment add/edit support repeatable `--mention NAME`, prepend the
+resolved profile URLs, and report `mentioned_users`. Notification delivery is
+unverified.
 
 See [CLI contracts and examples](docs/cli.md) for authentication, field clearing,
 error recovery, and raw API access.

@@ -29,6 +29,10 @@ query Relations($id:String!, $first:Int!, $after:String, $inverseAfter:String, $
 mutation CreateIssue($input:IssueCreateInput!) { issueCreate(input:$input) { success issue {...IssueFields} } }
 mutation UpdateIssue($id:String!, $input:IssueUpdateInput!) { issueUpdate(id:$id,input:$input) { success issue {...IssueFields} } }
 mutation AddComment($input:CommentCreateInput!) { commentCreate(input:$input) { success comment {...CommentFields} } }
+mutation EditComment($id:String!, $input:CommentUpdateInput!) { commentUpdate(id:$id,input:$input) { success comment {...CommentFields} } }
+mutation DeleteComment($id:String!) { commentDelete(id:$id) { success } }
+query MentionUser($id:String!) { user(id:$id) { id name url } }
+query ResolveProjects($first:Int!, $after:String) { organization { name urlKey } projects(first:$first,after:$after) { nodes { id name slugId url } pageInfo { ...PageInfoFields } } }
 mutation AddRelation($input:IssueRelationCreateInput!) { issueRelationCreate(input:$input) { success issueRelation {...RelationFields} } }
 mutation RemoveRelation($id:String!) { issueRelationDelete(id:$id) { success } }
 query OverviewProjects($filter: ProjectFilter, $first: Int!, $after: String) {

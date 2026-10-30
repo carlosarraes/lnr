@@ -131,8 +131,18 @@ pub fn keyring_error(action: &str, error: &keyring::Error) -> AppError {
 pub fn inventory() -> Result<serde_json::Value> {
     let config = load_config()?;
     let (default, workspaces) = import::available()?;
+    let environment_key = std::env::var_os("LINEAR_API_KEY").is_some();
+    let active_credential_source = if environment_key {
+        "LINEAR_API_KEY"
+    } else if config.effective_default().is_some() {
+        "stored_workspace"
+    } else {
+        "none"
+    };
     Ok(
-        serde_json::json!({"default_workspace":config.effective_default(),"workspaces":config.workspaces,"import_default":default,"importable_workspaces":workspaces,"credential_store":store::backend()?}),
+        serde_json::json!({"default_workspace":config.effective_default(),"workspaces":config.workspaces,"import_default":default,"importable_workspaces":workspaces,"credential_store":store::backend()?,
+            "active_credential_source":active_credential_source,
+            "workspace_hint":"Run lnr auth status --check to verify the active API workspace. To select stored credentials, unset LINEAR_API_KEY if set and use --workspace SLUG."}),
     )
 }
 pub fn entry(service: &str, ws: &str) -> Result<keyring::Entry> {
@@ -151,6 +161,8 @@ pub enum AuthResponse {
         import_default: Option<String>,
         importable_workspaces: Vec<String>,
         credential_store: String,
+        active_credential_source: String,
+        workspace_hint: String,
     },
 }
 
