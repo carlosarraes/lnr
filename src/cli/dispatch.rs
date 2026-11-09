@@ -82,9 +82,13 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
             .map(crate::service::page::Reply::data),
         Command::Api {
             query_file,
+            query_path,
             variables_file,
             operation_name,
         } => {
+            let query_file = query_file
+                .or(query_path)
+                .ok_or_else(|| AppError::input("Pass the file path or --query-file <path>"))?;
             if query_file == "-" && variables_file.as_deref() == Some("-") {
                 return Err(AppError::input("Only one input can read stdin"));
             }

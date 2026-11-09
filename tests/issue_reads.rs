@@ -118,3 +118,21 @@ fn unknown_issue_subcommand_uses_json_error_envelope() {
     assert_eq!(value(&o)["error"]["code"], "invalid_input");
     assert_eq!(s.count(), 0);
 }
+
+#[test]
+fn issue_json_round_trips_control_characters() {
+    let body = "control: \u{0001}\u{0007}\u{000c}\n";
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issue":{
+            "id":"i","identifier":"ENG-1","title":body,"description":body,
+            "comments":page(json!([{"id":"c","body":body}]),false,None)
+        }}}),
+    )]);
+    let o = s.run(&["issue", "view", "ENG-1", "--json"]);
+    assert!(o.status.success());
+    let output: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(output["data"]["description"], body);
+    assert_eq!(output["data"]["title"], body);
+    assert_eq!(output["data"]["comments"][0]["body"], body);
+}

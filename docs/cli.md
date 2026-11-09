@@ -171,7 +171,7 @@ issue/comments/relations before retrying to avoid duplicate writes.
 ## Raw GraphQL
 
 ```sh
-lnr api --query-file request.graphql --variables-file variables.json
+lnr api request.graphql --variables-file variables.json
 lnr api --query-file request.graphql --operation-name ReadIssues
 ```
 
@@ -202,3 +202,6 @@ to an endpoint you control.
 
 The cross-team state-type shortcut currently excludes `duplicate`; use its state
 UUID or raw GraphQL. UUID filters do not require a team lookup.
+
+Raw API query files accept either a positional path or `--query-file <path>`.
+If both are supplied, they must match.

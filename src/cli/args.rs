@@ -73,7 +73,9 @@ pub enum Command {
     Api {
         #[arg(long)]
         /// GraphQL document file; '-' reads stdin
-        query_file: String,
+        query_file: Option<String>,
+        /// GraphQL document file; alternatively use --query-file <path>
+        query_path: Option<String>,
         #[arg(long)]
         /// JSON variables object file; '-' reads stdin
         variables_file: Option<String>,

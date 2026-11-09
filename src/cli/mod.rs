@@ -31,6 +31,23 @@ pub async fn run() -> i32 {
         }
         Err(e) => return render_error(AppError::input(e.to_string()), json_mode),
     };
+    if let Some(args::Command::Api {
+        query_file,
+        query_path,
+        ..
+    }) = &cli.command
+    {
+        let message = match (query_file, query_path) {
+            (None, None) => Some("Pass the file path or --query-file <path>"),
+            (Some(a), Some(b)) if a != b => {
+                Some("Conflicting query files: pass the file path or --query-file <path>")
+            }
+            _ => None,
+        };
+        if let Some(message) = message {
+            return render_error(AppError::input(message), json_mode);
+        }
+    }
     if should_launch_tui(
         &cli,
         std::io::stdin().is_terminal(),
@@ -47,7 +64,10 @@ pub async fn run() -> i32 {
     match dispatch(cli).await {
         Ok(value) => {
             let text = if json_mode {
-                json!({"schema_version":1,"data":value.data,"meta":value.meta}).to_string()
+                serde_json::to_string(
+                    &json!({"schema_version":1,"data":value.data,"meta":value.meta}),
+                )
+                .expect("JSON values serialize")
             } else {
                 serde_json::to_string_pretty(&value.data).unwrap_or_default()
             };

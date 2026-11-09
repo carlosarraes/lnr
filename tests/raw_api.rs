@@ -72,3 +72,33 @@ fn api_help_points_to_dedicated_commands() {
         assert!(help.contains(command), "{command} missing from:\n{help}");
     }
 }
+
+#[test]
+fn positional_query_and_matching_flag_work() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("query.graphql");
+    std::fs::write(&path, "query { viewer { id } }").unwrap();
+    let path = path.to_str().unwrap();
+    for args in [vec!["api", path], vec!["api", path, "--query-file", path]] {
+        let s = Server::new(vec![(200, json!({"data":{"viewer":{"id":"u"}}}))]);
+        let o = s.run(&args);
+        assert!(o.status.success(), "{:?}", value(&o));
+        assert_eq!(value(&o)["data"]["viewer"]["id"], "u");
+    }
+}
+
+#[test]
+fn missing_or_conflicting_query_files_fail_locally() {
+    for args in [vec!["api"], vec!["api", "a", "--query-file", "b"]] {
+        let s = Server::new(vec![]);
+        let o = s.run(&args);
+        assert_eq!(o.status.code(), Some(2));
+        assert!(
+            value(&o)["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains("file path or --query-file <path>")
+        );
+        assert_eq!(s.count(), 0);
+    }
+}
