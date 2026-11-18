@@ -196,3 +196,26 @@ fn json_view_exposes_labels_as_a_list() {
     assert!(o.status.success());
     assert_eq!(value(&o)["data"]["labels"][1]["name"], "backend");
 }
+
+#[test]
+fn text_and_field_output_strip_terminal_escapes() {
+    let hostile = json!({"data":{"issue":{"id":"i","identifier":"ENG-7",
+        "title":"Fix\u{1b}]8;;http://evil\u{7} login\u{1b}[2J","description":"ok\nline"}}});
+    let o = Server::new(vec![(200, hostile.clone())]).run(&[
+        "issue",
+        "view",
+        "ENG-7",
+        "--no-comments",
+        "--output",
+        "text",
+    ]);
+    assert!(o.status.success(), "{}", output_text(&o));
+    let text = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        !text.contains('\u{1b}') && !text.contains('\u{7}'),
+        "{text:?}"
+    );
+    assert!(text.contains("ok\nline"));
+    let o = Server::new(vec![(200, hostile)]).run(&["issue", "view", "ENG-7", "--field", "title"]);
+    assert!(!String::from_utf8_lossy(&o.stdout).contains('\u{1b}'));
+}

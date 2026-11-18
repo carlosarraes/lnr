@@ -45,10 +45,17 @@ fn lookup(value: &Value, path: &[&str]) -> Value {
     }
 }
 
+/// Drop control characters (ANSI/OSC escapes) from API text, keeping newlines and tabs.
+pub fn printable(s: &str) -> String {
+    s.chars()
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+        .collect()
+}
+
 fn plain(value: &Value) -> String {
     match value {
         Value::Null => String::new(),
-        Value::String(s) => s.clone(),
+        Value::String(s) => printable(s),
         Value::Array(items) => items
             .iter()
             .map(plain)

@@ -16,9 +16,7 @@ const MUTED: Color = Color::Rgb(125, 133, 148);
 const BLUE: Color = Color::Rgb(147, 180, 220);
 const SELECTED: Color = Color::Rgb(41, 52, 67);
 fn clean(s: &str) -> String {
-    s.chars()
-        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
-        .collect()
+    crate::cli::render::printable(s)
 }
 fn single(s: &str) -> String {
     clean(s).replace(['\n', '\t'], " ")
