@@ -1,5 +1,6 @@
 pub mod args;
 mod dispatch;
+pub mod render;
 pub mod schema;
 use crate::error::AppError;
 use args::Cli;
@@ -61,9 +62,34 @@ pub async fn run() -> i32 {
     if cli.command.is_none() {
         return write_stdout(&Cli::command().render_help().to_string());
     }
+    let explicit_json = cli.json || matches!(cli.output, Some(args::Output::Json));
+    let view_fields = match &cli.command {
+        Some(args::Command::Issue {
+            command: args::IssueCommand::View { field, .. },
+        }) => Some(field.clone()),
+        _ => None,
+    };
+    let fields = view_fields.as_deref().filter(|f| !f.is_empty());
+    // Field selection is for grep: plain stdout and plain stderr unless JSON is explicit.
+    let json_mode = json_mode && (explicit_json || fields.is_none());
+    if let Some(fields) = fields
+        && let Err(e) = render::validate_fields(fields)
+    {
+        return render_error(e, json_mode);
+    }
     match dispatch(cli).await {
         Ok(value) => {
-            let text = if json_mode {
+            let text = if let Some(fields) = fields {
+                if json_mode {
+                    serde_json::to_string(&json!({"schema_version":1,
+                        "data":render::select(&value.data, fields),"meta":value.meta}))
+                    .expect("JSON values serialize")
+                } else {
+                    render::fields_text(&value.data, fields)
+                }
+            } else if view_fields.is_some() && !json_mode {
+                render::issue_text(&value.data)
+            } else if json_mode {
                 serde_json::to_string(
                     &json!({"schema_version":1,"data":value.data,"meta":value.meta}),
                 )

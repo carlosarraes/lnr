@@ -198,6 +198,10 @@ pub enum IssueCommand {
         /// Omit comments; default view fetches all pages, oldest first
         #[arg(long)]
         no_comments: bool,
+        /// Print only these comma-separated fields as `key: value` lines (bare value for one
+        /// field); dotted paths such as state.name,assignee.name are allowed
+        #[arg(long, value_delimiter = ',')]
+        field: Vec<String>,
     },
     /// Read an issue with project, parent, children, comments, and relations
     Context {

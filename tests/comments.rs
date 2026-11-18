@@ -201,7 +201,14 @@ fn unresolved_mention_prevents_mutation() {
         "nobody",
     ]);
     assert_eq!(o.status.code(), Some(4));
-    assert_eq!(s.count(), 1);
+    // The second request is the read-only workspace lookup for the not-found hint.
+    let requests = s.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(
+        requests
+            .iter()
+            .all(|r| !r["query"].as_str().unwrap().contains("mutation"))
+    );
 }
 
 #[test]

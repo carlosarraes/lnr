@@ -207,8 +207,17 @@ impl ApiClient {
                 })
             });
         let transient = rate || matches!(status.as_u16(), 502..=504);
+        let missing = gql_errors.is_some_and(|es| {
+            es.iter().any(|e| {
+                e["message"]
+                    .as_str()
+                    .is_some_and(|m| m.starts_with("Entity not found"))
+            })
+        });
         let code = if status.as_u16() == 401 || status.as_u16() == 403 {
             "authentication"
+        } else if missing && !status.is_server_error() {
+            "not_found"
         } else if kind == OperationKind::Mutation && status.is_server_error() {
             "uncertain_mutation"
         } else if rate {

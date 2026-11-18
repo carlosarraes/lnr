@@ -73,7 +73,80 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
     let service = crate::service::Service::new(crate::api::ApiClient::new(
         crate::auth::resolve(cli.workspace.as_deref()).await?,
     )?);
-    match cli.command.unwrap() {
+    let source = crate::auth::credential_source(cli.workspace.as_deref());
+    let reference = cli.command.as_ref().and_then(issue_reference);
+    match run(&service, cli.command.unwrap()).await {
+        Err(e) if e.code == "not_found" && e.details.get("workspace").is_none() => {
+            Err(explain_not_found(&service, e, &source, reference.as_deref()).await)
+        }
+        other => other,
+    }
+}
+
+fn issue_reference(command: &args::Command) -> Option<String> {
+    use args::{CommentCommand, IssueCommand, RelationCommand};
+    let args::Command::Issue { command } = command else {
+        return None;
+    };
+    match command {
+        IssueCommand::View { reference, .. }
+        | IssueCommand::Context { reference, .. }
+        | IssueCommand::Update { reference, .. }
+        | IssueCommand::Comments { reference, .. }
+        | IssueCommand::Comment {
+            command: CommentCommand::List { reference, .. } | CommentCommand::Add { reference, .. },
+        }
+        | IssueCommand::Relation {
+            command:
+                RelationCommand::List { reference, .. } | RelationCommand::Add { reference, .. },
+        } => Some(reference.clone()),
+        _ => None,
+    }
+}
+
+/// Missing entities are often a credential for the wrong workspace, so name the
+/// workspace and where the credential came from (never the credential itself).
+async fn explain_not_found(
+    service: &crate::service::Service,
+    mut error: AppError,
+    source: &str,
+    reference: Option<&str>,
+) -> AppError {
+    let organization = service
+        .status()
+        .await
+        .ok()
+        .and_then(|s| s.organization)
+        .map(|o| match o.name {
+            Some(name) if name != o.url_key => format!("{} ({name})", o.url_key),
+            _ => o.url_key,
+        });
+    let workspace = organization
+        .clone()
+        .unwrap_or_else(|| "unknown (organization lookup failed)".into());
+    let target = reference.unwrap_or("the requested entity");
+    let hint = format!(
+        "this key is for workspace {workspace}; {target} isn't in it. Use the card text from your brief instead."
+    );
+    error.message = format!(
+        "{} (credential: {source}; workspace: {workspace}). Hint: {hint}",
+        error.message.trim_end_matches('.')
+    );
+    if !error.details.is_object() {
+        error.details = Box::new(json!({}));
+    }
+    error.details["workspace"] = json!(organization);
+    error.details["credential_source"] = json!(source);
+    error.details["hint"] = json!(hint);
+    error
+}
+
+async fn run(
+    service: &crate::service::Service,
+    command: args::Command,
+) -> crate::error::Result<crate::service::page::Reply> {
+    use args::{AuthCommand, Command};
+    match command {
         Command::Auth {
             command: AuthCommand::Status { .. },
         } => service
@@ -131,6 +204,7 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                 args::IssueCommand::View {
                     reference,
                     no_comments,
+                    ..
                 },
         } => service
             .inspect_issue(&reference, !no_comments)
@@ -263,13 +337,13 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
                 .await
                 .map(crate::service::page::Reply::into_json),
         },
-        Command::Team { command } => catalog(&service, "team", command).await,
-        Command::User { command } => catalog(&service, "user", command).await,
+        Command::Team { command } => catalog(service, "team", command).await,
+        Command::User { command } => catalog(service, "user", command).await,
         Command::State {
             command: args::StateCommand::List { team, page },
         } => {
             catalog(
-                &service,
+                service,
                 "state",
                 args::CatalogCommand::List {
                     team: Some(team),
@@ -278,7 +352,7 @@ pub async fn dispatch(cli: Cli) -> crate::error::Result<crate::service::page::Re
             )
             .await
         }
-        Command::Label { command } => catalog(&service, "label", command).await,
+        Command::Label { command } => catalog(service, "label", command).await,
         Command::Schema
         | Command::Auth {
             command:

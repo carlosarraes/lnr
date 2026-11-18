@@ -161,6 +161,7 @@ impl Service {
                     );
                 }
                 issue = crate::model::normalize(data["issue"].clone());
+                crate::model::flatten_labels(&mut issue);
                 first = false;
             }
             if let Err(e) = pages.ingest(&data["issue"]["comments"])
@@ -196,11 +197,12 @@ impl Service {
             return Err(AppError::input("Issue reference must not be empty"));
         }
         let data = self.query("IssueView", json!({"id":reference})).await?;
-        crate::model::decode(
-            data.get("issue")
-                .filter(|v| !v.is_null())
-                .cloned()
-                .ok_or_else(|| AppError::new("not_found", "Issue not found"))?,
-        )
+        let mut issue = data
+            .get("issue")
+            .filter(|v| !v.is_null())
+            .cloned()
+            .ok_or_else(|| AppError::new("not_found", "Issue not found"))?;
+        crate::model::flatten_labels(&mut issue);
+        crate::model::decode(issue)
     }
 }

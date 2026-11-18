@@ -24,6 +24,15 @@ on stderr and waits for approval; other commands do not prompt.
 | 8 | API failure, partial result, or uncertain mutation |
 | 9 | Local I/O or configuration failure |
 
+Linear's `Entity not found` errors map to exit 4 (`not_found`). Not-found errors
+make one extra read-only `viewer`/`organization` query and add
+`details.workspace` (null if the lookup fails), `details.credential_source`
+(`LINEAR_API_KEY environment variable`, or `stored workspace SLUG in
+<config.toml path>`), and `details.hint`. The message includes all three. The
+credential itself is never printed. A key for another workspace makes an
+existing card look missing, for example: `this key is for workspace carraes;
+MON-13351 isn't in it. Use the card text from your brief instead.`
+
 ## Credentials
 
 Use browser OAuth, set `LINEAR_API_KEY`, or import an existing Linear CLI workspace:
@@ -78,6 +87,14 @@ even if older configuration has no default. `auth default SLUG` changes it.
   `--no-comments` omits discussion. Issue identifiers such as `ENG-123` work directly.
   Comment pagination is automatic; `meta.collections.comments` reports completeness.
   Partial failures preserve fetched comments and issue details with a nonzero exit.
+- `issue view REF --field title,state.name,assignee.name`: prints `key: value` lines
+  (the bare value for a single field) instead of the envelope, so `grep`/`cut` work.
+  Dotted paths descend into objects and map over lists (`labels.name` gives
+  `bug, backend`). Missing or null paths print an empty value. An unknown top-level
+  field exits 2 before any request and lists the valid fields. With an explicit
+  `--json`, `data` holds the selected paths and values instead.
+- `issue view REF --output text`: readable title, state, assignee, labels, description,
+  and comments instead of JSON. JSON output includes `labels` as `[{id, name}]`.
 - `issue get REF`: alias of `issue view`, with the same flags and output.
 - Issue results from `list`, `view`, `create`, and `update` share one shape and
   include `branch_name` (Linear's suggested git branch) and `creator`.

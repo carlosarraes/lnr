@@ -54,6 +54,9 @@ lnr issue list --project appraiser --title inconclusive --json
 lnr issue view ENG-123 --json # Includes all comments, newest last
 lnr issue get ENG-123 --json # Alias of issue view
 lnr issue view ENG-123 --no-comments --json
+lnr issue view ENG-123 --field state.name # Bare value, for scripts and grep
+lnr issue view ENG-123 --field title,state.name,assignee.name # key: value lines
+lnr issue view ENG-123 --output text # Title, state, assignee, labels, description
 lnr issue context ENG-123 --limit 10 --json
 lnr issue update ENG-123 --state 'In Progress' --assignee me --json
 lnr issue comment add ENG-123 --body-file report.md --json
@@ -75,6 +78,10 @@ issue content. Projects resolve by case-insensitive exact name or unique
 prefix/slug. Comment add/edit support repeatable `--mention NAME`, prepend the
 resolved profile URLs, and report `mentioned_users`. Notification delivery is
 unverified.
+
+A missing issue exits 4 and names the active credential's workspace and its
+source (`LINEAR_API_KEY` or the stored workspace in `config.toml`), never the
+key. A card from another workspace looks missing, so check that before retrying.
 
 See [CLI contracts and examples](docs/cli.md) for authentication, field clearing,
 error recovery, and raw API access.

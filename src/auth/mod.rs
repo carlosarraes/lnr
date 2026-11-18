@@ -93,6 +93,22 @@ pub async fn resolve(workspace: Option<&str>) -> Result<Credential> {
     )))?;
     oauth::resolve_token(ws, key).await
 }
+/// Describe where the active credential comes from without exposing it.
+pub fn credential_source(workspace: Option<&str>) -> String {
+    if std::env::var_os("LINEAR_API_KEY").is_some() {
+        return "LINEAR_API_KEY environment variable".into();
+    }
+    let path = config_root()
+        .map(|p| p.join("lnr/config.toml").display().to_string())
+        .unwrap_or_else(|_| "lnr/config.toml".into());
+    let ws = workspace
+        .map(str::to_owned)
+        .or_else(|| load_config().ok()?.effective_default().map(str::to_owned));
+    match ws {
+        Some(ws) => format!("stored workspace {ws} in {path}"),
+        None => path,
+    }
+}
 pub fn load_config() -> Result<Config> {
     let path = config_root()?.join("lnr/config.toml");
     let config: Config = match std::fs::read_to_string(path) {

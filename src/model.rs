@@ -38,6 +38,8 @@ pub struct Issue {
     pub branch_name: Option<String>,
     #[serde(default)]
     pub creator: Option<Entity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub labels: Option<Vec<Entity>>,
 }
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct IssueRef {
@@ -113,6 +115,12 @@ pub struct IssueContext {
 pub struct RelationsPage {
     pub relations: Vec<Relation>,
     pub inverse_relations: Vec<Relation>,
+}
+/// Replace a `{nodes: [...]}` connection with its node list.
+pub fn flatten_labels(issue: &mut serde_json::Value) {
+    if let Some(nodes) = issue.pointer("/labels/nodes").cloned() {
+        issue["labels"] = nodes;
+    }
 }
 /// Normalize built-in response keys; raw GraphQL deliberately bypasses this adapter.
 pub fn normalize(value: serde_json::Value) -> serde_json::Value {
