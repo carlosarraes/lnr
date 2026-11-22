@@ -50,6 +50,7 @@ codes without authentication. Only `auth login` requires browser authorization.
 
 ```sh
 lnr issue list --team ENG --search timeout --limit 20 --json
+lnr issue search timeout --team ENG --json # Shorthand for issue list --search
 lnr issue list --project appraiser --title inconclusive --json
 lnr issue view ENG-123 --json # Includes all comments, newest last
 lnr issue get ENG-123 --json # Alias of issue view
@@ -74,7 +75,7 @@ outgoing relations, and incoming relations.
 
 `--description TEXT` accepts inline issue descriptions. `--title TEXT` on issue
 lists is a case-insensitive title filter, while `--search TEXT` searches full
-issue content. Projects resolve by case-insensitive exact name or unique
+issue content; `lnr issue search TEXT` is shorthand for `issue list --search TEXT`. Projects resolve by case-insensitive exact name or unique
 prefix/slug. Comment add/edit support repeatable `--mention NAME`, prepend the
 resolved profile URLs, and report `mentioned_users`. Notification delivery is
 unverified.

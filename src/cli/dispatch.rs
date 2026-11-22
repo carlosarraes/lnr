@@ -211,7 +211,8 @@ async fn run(
             .await
             .map(crate::service::page::Reply::into_json),
         Command::Issue {
-            command: args::IssueCommand::List { filter, page },
+            command:
+                args::IssueCommand::List { filter, page } | args::IssueCommand::Search { filter, page },
         } => service
             .list_issues(filter.into(), page.into())
             .await

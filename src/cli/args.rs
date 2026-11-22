@@ -190,6 +190,18 @@ pub enum IssueCommand {
         #[command(flatten)]
         page: Paging,
     },
+    /// Full-text search of issues; shorthand for `issue list --search QUERY`
+    #[command(mut_arg("search", |a| a
+        .long(None)
+        .required(true)
+        .value_name("QUERY")
+        .help("Text to search for in issue content")))]
+    Search {
+        #[command(flatten)]
+        filter: Filters,
+        #[command(flatten)]
+        page: Paging,
+    },
     /// Read an issue and all comments, oldest first; --no-comments skips discussion
     #[command(visible_alias = "get")]
     View {

@@ -74,7 +74,7 @@ fn output_name(path: &str) -> &'static str {
     match path {
         "lnr issue view" | "lnr issue get" => "issue_view",
         "lnr issue create" | "lnr issue update" => "issue",
-        "lnr issue list" | "lnr project issues" => "issues",
+        "lnr issue list" | "lnr issue search" | "lnr project issues" => "issues",
         "lnr issue context" => "issue_context",
         "lnr issue comment list" | "lnr issue comments" => "comments",
         "lnr issue comment add" | "lnr issue comment edit" => "comment",
@@ -103,7 +103,7 @@ fn walk(command: &clap::Command, path: &str, result: &mut Vec<Value>) {
             constraints["operation_name_required_when"] =
                 json!("Document has more than one operation");
         }
-        if path == "lnr issue list" || path == "lnr project issues" {
+        if ["lnr issue list", "lnr issue search", "lnr project issues"].contains(&path) {
             constraints["team_required_when"] =
                 json!("--state is a name rather than a UUID or state type");
         }
