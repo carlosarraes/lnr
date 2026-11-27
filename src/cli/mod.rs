@@ -108,7 +108,11 @@ fn render_error(error: AppError, json_mode: bool) -> i32 {
         let value = json!({"schema_version":1,"data":error.data,"error":error,"meta":error.meta});
         let _ = writeln!(std::io::stdout(), "{value}");
     } else {
-        eprintln!("{}: {}", error.code, error.message);
+        eprintln!(
+            "{}: {}",
+            render::printable(&error.code),
+            render::printable(&error.message)
+        );
     }
     code
 }

@@ -150,3 +150,19 @@ fn team_uuid_skips_resolution() {
     assert!(o.status.success(), "{:?}", value(&o));
     assert_eq!(s.count(), 1);
 }
+
+#[test]
+fn text_errors_strip_terminal_escapes_from_team_candidates() {
+    let s = Server::new(vec![(
+        200,
+        teams(json!([{"id":"t1","key":"MON","name":"Eng\u{1b}]8;;http://evil\u{7}\u{1b}[2J"}])),
+    )]);
+    let o = s.run(&["issue", "list", "--team", "Design", "--output", "text"]);
+    assert_eq!(o.status.code(), Some(4));
+    let stderr = String::from_utf8_lossy(&o.stderr);
+    assert!(stderr.contains("MON (Eng"), "{stderr}");
+    assert!(
+        !stderr.contains('\u{1b}') && !stderr.contains('\u{7}'),
+        "{stderr:?}"
+    );
+}
