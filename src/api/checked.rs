@@ -38,6 +38,8 @@ checked!(
     DeleteComment,
     MentionUser,
     ResolveProjects,
+    ResolveTeams,
+    ReadyIssues,
     AddRelation,
     RemoveRelation
 );

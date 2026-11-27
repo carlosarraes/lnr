@@ -5,7 +5,7 @@ use support::*;
 fn issue_view_returns_details() {
     let s = Server::new(vec![(
         200,
-        json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details","comments":page(json!([]),false,None)}}}),
+        json!({"data":{"issue":{"id":"i","identifier":"ENG-1","title":"Fix","description":"Details","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),"comments":page(json!([]),false,None)}}}),
     )]);
     let o = s.run(&["issue", "view", "ENG-1"]);
     assert!(o.status.success(), "{:?}", value(&o));
@@ -93,7 +93,7 @@ fn empty_title_filter_is_rejected_without_network() {
 #[test]
 fn get_alias_preserves_view_flags_and_output() {
     for no_comments in [false, true] {
-        let reply = json!({"data":{"issue":{"id":"i","identifier":"ENG-1","comments":page(json!([{"id":"c","body":"Hello"}]),false,None)}}});
+        let reply = json!({"data":{"issue":{"id":"i","identifier":"ENG-1","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),"comments":page(json!([{"id":"c","body":"Hello"}]),false,None)}}});
         let s = Server::new(vec![(200, reply.clone()), (200, reply)]);
         let mut args = vec!["issue", "view", "ENG-1", "--json"];
         if no_comments {
@@ -125,7 +125,7 @@ fn issue_json_round_trips_control_characters() {
     let s = Server::new(vec![(
         200,
         json!({"data":{"issue":{
-            "id":"i","identifier":"ENG-1","title":body,"description":body,
+            "id":"i","identifier":"ENG-1","title":body,"description":body,"relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),
             "comments":page(json!([{"id":"c","body":body}]),false,None)
         }}}),
     )]);

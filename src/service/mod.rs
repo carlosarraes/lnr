@@ -79,5 +79,6 @@ pub mod comments;
 pub mod writes;
 
 pub mod projects;
+pub mod ready;
 
 pub mod project_overview;

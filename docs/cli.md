@@ -83,8 +83,8 @@ even if older configuration has no default. `auth default SLUG` changes it.
 - `issue list`: filters for team, assignee, project, state, title, and searchable content.
   `--title TEXT` matches only titles with a case-insensitive contains filter.
   `--search TEXT` retains full-text content search; both filters can be combined.
-- `issue view REF`: issue details and all comments, oldest first and newest last.
-  `--no-comments` omits discussion. Issue identifiers such as `ENG-123` work directly.
+- `issue view REF`: issue details, relations, and all comments, oldest first and newest last.
+  `--no-comments` omits discussion only. Issue identifiers such as `ENG-123` work directly.
   Comment pagination is automatic; `meta.collections.comments` reports completeness.
   Partial failures preserve fetched comments and issue details with a nonzero exit.
 - `issue view REF --field title,state.name,assignee.name`: prints `key: value` lines
@@ -94,10 +94,20 @@ even if older configuration has no default. `auth default SLUG` changes it.
   field exits 2 before any request and lists the valid fields. With an explicit
   `--json`, `data` holds the selected paths and values instead.
 - `issue view REF --output text`: readable title, state, assignee, labels, description,
-  and comments instead of JSON. JSON output includes `labels` as `[{id, name}]`.
+  relations, and comments instead of JSON. JSON output includes `labels` as `[{id, name}]`.
+- `issue view` includes the first 20 outgoing and 20 incoming relations, grouped
+  under `relations`: `blocks`, `blocked_by`, `related`, `duplicate_of`,
+  `duplicated_by`, and `other` (any other type, such as `similar`). Each entry is
+  the relation shape from `issue relation list`. Outgoing groups (`blocks`,
+  `duplicate_of`) name the other issue in `related_issue`. Incoming groups
+  (`blocked_by`, `duplicated_by`) name it in `issue`. `related` holds both directions.
+  `meta.collections.relations` and `meta.collections.inverse_relations` report
+  completeness; continue an incomplete direction with `issue relation list REF`.
+  Paths such as `--field relations.blocked_by.issue.identifier` work.
 - `issue get REF`: alias of `issue view`, with the same flags and output.
 - Issue results from `list`, `view`, `create`, and `update` share one shape and
   include `branch_name` (Linear's suggested git branch) and `creator`.
+- `issue ready`: unblocked issues; see [Ready issues](#ready-issues).
 - `issue context REF`: details, parent, project summary, children, comments, and relations.
 - `issue comment list REF`, or `issue comments REF`: paged comments with the same flags and output.
 - `issue relation list REF`: separate outgoing and incoming relations.
@@ -106,10 +116,19 @@ even if older configuration has no default. `auth default SLUG` changes it.
 - `project issues REF`: the same issue filters scoped to one project.
 - `team list`, `user list`, `state list --team REF`, `label list --team REF`: discover identifiers.
 
-Names resolve by exact matching within the applicable scope. Duplicates fail
-with candidates. For issue lists, state types such as `started` work across
+Users, states, and labels resolve by exact name within the applicable scope.
+Duplicates fail with candidates. For issue lists, state types such as `started` work across
 teams; state names such as `In Review` require `--team`. Updates resolve a state
 name using the issue's team. UUIDs avoid name resolution.
+
+Teams (`--team` on every command) accept a key or name, case-insensitively, then a
+unique case-insensitive prefix of the name or of any word in it: `mon` matches
+key `MON`, and `Engineering` matches "Engineering team". Exact key matches win
+over exact name matches, and either wins over prefixes. A prefix shared by
+several teams (`team` for "Engineering team" and "Product team") exits 5 with
+candidates. A miss exits 4 with up to ten `KEY (name)` candidates and points to
+`lnr team list`. The wrong-workspace hint only appears when no teams are
+visible at all.
 
 Projects also accept case-insensitive exact names, unique name prefixes, and
 slugs from project URLs. Exact matches take precedence over prefixes. Resolution
@@ -123,6 +142,33 @@ issues in. `--involvement lead,member` chooses specific criteria. The OR filter
 runs on the server, so projects matching several criteria are not duplicated.
 Progress is Linear's API `progress` value, a fraction from 0 to 1. Missing values
 remain unavailable rather than becoming zero.
+
+## Ready issues
+
+`issue ready` lists issues that nothing unfinished blocks. It takes the `issue list`
+filters, but `--assignee` defaults to `me` and `--state` to `unstarted`:
+
+```sh
+lnr issue ready
+lnr issue ready --assignee me --team Engineering
+lnr issue ready --team MON --state unstarted --all
+```
+
+A candidate is dropped while either kind of blocker is not in a `completed` state.
+Canceled blockers and blockers that cannot be found still block.
+
+1. A native Linear blocked-by relation (an incoming `blocks` relation). The
+   first 50 incoming relations of each candidate are checked. If there are
+   more, the issue is treated as blocked, with an `unverified` blocker.
+2. A description gate: `after KEY-123` or `Build after KEY-123`. Matching is
+   case-insensitive and the identifier can be from any team. `after` must
+   start a word, so `thereafter` does not count. Gate states are looked up in
+   batches of 80 identifiers.
+
+Output has the `issue list` shape. `--limit`, `--after`, and `--all` page through
+the candidates, so a page can hold fewer issues than `--limit`.
+`meta.blocked` lists the dropped candidates on this page as
+`{id, identifier, blockers: [{identifier, source: relation|description, state}]}`.
 
 ## Pagination
 

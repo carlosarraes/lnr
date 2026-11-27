@@ -52,12 +52,13 @@ codes without authentication. Only `auth login` requires browser authorization.
 lnr issue list --team ENG --search timeout --limit 20 --json
 lnr issue search timeout --team ENG --json # Shorthand for issue list --search
 lnr issue list --project appraiser --title inconclusive --json
-lnr issue view ENG-123 --json # Includes all comments, newest last
+lnr issue view ENG-123 --json # Includes relations and all comments, newest last
 lnr issue get ENG-123 --json # Alias of issue view
 lnr issue view ENG-123 --no-comments --json
 lnr issue view ENG-123 --field state.name # Bare value, for scripts and grep
 lnr issue view ENG-123 --field title,state.name,assignee.name # key: value lines
-lnr issue view ENG-123 --output text # Title, state, assignee, labels, description
+lnr issue view ENG-123 --output text # Title, state, assignee, labels, description, relations
+lnr issue ready --team Engineering --json # My unstarted issues with no unfinished blockers
 lnr issue context ENG-123 --limit 10 --json
 lnr issue update ENG-123 --state 'In Progress' --assignee me --json
 lnr issue comment add ENG-123 --body-file report.md --json

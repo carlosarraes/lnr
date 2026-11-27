@@ -6,7 +6,7 @@ fn view_fetches_all_comments_and_returns_newest_last() {
     let s = Server::new(vec![
         (
             200,
-            json!({"data":{"issue":{"id":"i","identifier":"ENG-1","comments":page(json!([{"id":"new","body":"latest discussion","createdAt":"2026-10-06T12:00:00Z"}]),true,Some("next"))}}}),
+            json!({"data":{"issue":{"id":"i","identifier":"ENG-1","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),"comments":page(json!([{"id":"new","body":"latest discussion","createdAt":"2026-10-06T12:00:00Z"}]),true,Some("next"))}}}),
         ),
         (
             200,
@@ -25,7 +25,10 @@ fn view_fetches_all_comments_and_returns_newest_last() {
 }
 #[test]
 fn no_comments_skips_comment_requests_and_omits_the_field() {
-    let s = Server::new(vec![(200, json!({"data":{"issue":{"id":"i"}}}))]);
+    let s = Server::new(vec![(
+        200,
+        json!({"data":{"issue":{"id":"i","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None)}}}),
+    )]);
     let o = s.run(&["issue", "view", "ENG-1", "--no-comments"]);
     assert!(o.status.success(), "{:?}", value(&o));
     assert!(value(&o)["data"].get("comments").is_none());
@@ -36,7 +39,7 @@ fn partial_comment_page_keeps_issue_and_available_discussion() {
     let s = Server::new(vec![
         (
             200,
-            json!({"data":{"issue":{"id":"i","comments":page(json!([{"id":"a","createdAt":"2026-10-06T12:00:00Z"}]),true,Some("next"))}}}),
+            json!({"data":{"issue":{"id":"i","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),"comments":page(json!([{"id":"a","createdAt":"2026-10-06T12:00:00Z"}]),true,Some("next"))}}}),
         ),
         (
             200,

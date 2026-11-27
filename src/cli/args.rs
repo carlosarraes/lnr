@@ -133,7 +133,7 @@ pub enum CatalogCommand {
     /// List matching items with cursor pagination
     List {
         #[arg(long)]
-        /// Team key, exact name, or UUID
+        /// Team key, name, unique name prefix (all case-insensitive), or UUID
         team: Option<String>,
         #[command(flatten)]
         page: Paging,
@@ -163,7 +163,7 @@ impl Default for Paging {
 #[derive(Debug, Args, Clone, Default)]
 pub struct Filters {
     #[arg(long)]
-    /// Team key, exact name, or UUID
+    /// Team key, name, unique name prefix (all case-insensitive), or UUID
     pub team: Option<String>,
     #[arg(long)]
     /// Assignee UUID, exact name, display name, email, or me
@@ -202,12 +202,35 @@ pub enum IssueCommand {
         #[command(flatten)]
         page: Paging,
     },
-    /// Read an issue and all comments, oldest first; --no-comments skips discussion
+    /// List ready issues: unblocked by native blocked-by relations and `after KEY-N` gates
+    ///
+    /// An issue is excluded while any blocker is not completed (canceled still blocks):
+    ///   - a native Linear blocked-by relation whose blocking issue is not completed
+    ///   - a description gate `after KEY-123` or `Build after KEY-123` (case-insensitive)
+    ///     whose issue is not completed or cannot be found
+    ///
+    /// Paging applies to scanned candidates, so a page can hold fewer than --limit issues;
+    /// meta.blocked lists excluded candidates and their blockers.
+    #[command(verbatim_doc_comment)]
+    #[command(mut_arg("assignee", |a| a
+        .default_value("me")
+        .help("Assignee UUID, exact name, display name, email, or me")))]
+    #[command(mut_arg("state", |a| a
+        .default_value("unstarted")
+        .help("State UUID, exact name (requires --team), or type such as unstarted")))]
+    Ready {
+        #[command(flatten)]
+        filter: Filters,
+        #[command(flatten)]
+        page: Paging,
+    },
+    /// Read an issue with relations and all comments, oldest first; --no-comments skips discussion
     #[command(visible_alias = "get")]
     View {
         /// Issue identifier such as ENG-123, or UUID
         reference: String,
-        /// Omit comments; default view fetches all pages, oldest first
+        /// Omit comments; default view fetches all pages, oldest first. Relations (first 20
+        /// per direction) are always included
         #[arg(long)]
         no_comments: bool,
         /// Print only these comma-separated fields as `key: value` lines (bare value for one
@@ -238,7 +261,7 @@ pub enum IssueCommand {
     /// Create an issue in a team
     Create {
         #[arg(long)]
-        /// Team key, exact name, or UUID
+        /// Team key, name, unique name prefix (all case-insensitive), or UUID
         team: String,
         #[arg(long)]
         /// Issue title
@@ -400,7 +423,7 @@ pub enum ProjectCommand {
     /// List projects; filter by team, state, or involvement
     List {
         #[arg(long)]
-        /// Team key, exact name, or UUID
+        /// Team key, name, unique name prefix (all case-insensitive), or UUID
         team: Option<String>,
         #[arg(long)]
         /// Project state, for example planned, started, paused, completed, canceled
@@ -435,7 +458,7 @@ pub enum StateCommand {
     /// List a team's workflow states
     List {
         #[arg(long)]
-        /// Team key, exact name, or UUID
+        /// Team key, name, unique name prefix (all case-insensitive), or UUID
         team: String,
         #[command(flatten)]
         page: Paging,

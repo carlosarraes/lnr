@@ -111,6 +111,39 @@ pub fn issue_text(data: &Value) -> String {
     } else {
         description.trim_end().to_owned()
     });
+    let mut relations = vec![];
+    for (group, label, other) in [
+        ("blocks", "blocks", "related_issue"),
+        ("blocked_by", "blocked by", "issue"),
+        ("related", "related", ""),
+        ("duplicate_of", "duplicate of", "related_issue"),
+        ("duplicated_by", "duplicated by", "issue"),
+        ("other", "", ""),
+    ] {
+        for r in data["relations"][group].as_array().into_iter().flatten() {
+            let other = match other {
+                "" if r["related_issue"]["id"] == data["id"] => "issue",
+                "" => "related_issue",
+                side => side,
+            };
+            let label = if label.is_empty() {
+                plain(&r["type"])
+            } else {
+                label.to_owned()
+            };
+            let issue = [plain(&r[other]["identifier"]), plain(&r[other]["title"])]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join("  ");
+            relations.push(format!("  {label:<13} {issue}"));
+        }
+    }
+    if !relations.is_empty() {
+        out.push(String::new());
+        out.push(format!("Relations ({})", relations.len()));
+        out.extend(relations);
+    }
     if let Some(comments) = data["comments"].as_array() {
         out.push(String::new());
         out.push(format!("Comments ({})", comments.len()));

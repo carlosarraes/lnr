@@ -20,6 +20,7 @@ fn issue() -> Value {
         "id":"i","identifier":"ENG-7","title":"Fix login","description":"Steps to reproduce\nline two",
         "state":{"id":"s","name":"In Progress","type":"started"},
         "assignee":null,
+        "relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),
         "labels":{"nodes":[{"id":"l1","name":"bug"},{"id":"l2","name":"backend"}]},
         "comments":page(json!([{"id":"c","body":"looks good","createdAt":"2026-10-06T12:00:00Z","user":{"id":"u","name":"Ana"}}]),false,None)
     }}})
@@ -200,7 +201,7 @@ fn json_view_exposes_labels_as_a_list() {
 #[test]
 fn text_and_field_output_strip_terminal_escapes() {
     let hostile = json!({"data":{"issue":{"id":"i","identifier":"ENG-7",
-        "title":"Fix\u{1b}]8;;http://evil\u{7} login\u{1b}[2J","description":"ok\nline"}}});
+        "title":"Fix\u{1b}]8;;http://evil\u{7} login\u{1b}[2J","relations":page(json!([]),false,None),"inverseRelations":page(json!([]),false,None),"description":"ok\nline"}}});
     let o = Server::new(vec![(200, hostile.clone())]).run(&[
         "issue",
         "view",

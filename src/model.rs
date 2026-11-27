@@ -176,4 +176,39 @@ pub struct IssueView {
     pub issue: Issue,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comments: Option<Vec<Comment>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relations: Option<RelationGroups>,
+}
+/// Relations seen from one issue. `blocks`, `related` and `duplicate_of` keep
+/// outgoing relations (the other issue is `related_issue`); `blocked_by` and
+/// `duplicated_by` hold incoming ones (the other issue is `issue`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct RelationGroups {
+    pub blocks: Vec<Relation>,
+    pub blocked_by: Vec<Relation>,
+    pub related: Vec<Relation>,
+    pub duplicate_of: Vec<Relation>,
+    pub duplicated_by: Vec<Relation>,
+    pub other: Vec<Relation>,
+}
+impl RelationGroups {
+    pub fn new(outgoing: Vec<Relation>, incoming: Vec<Relation>) -> Self {
+        let mut groups = Self::default();
+        for (relation, inverse) in outgoing
+            .into_iter()
+            .map(|r| (r, false))
+            .chain(incoming.into_iter().map(|r| (r, true)))
+        {
+            let group = match (relation.kind.as_deref(), inverse) {
+                (Some("blocks"), false) => &mut groups.blocks,
+                (Some("blocks"), true) => &mut groups.blocked_by,
+                (Some("related"), _) => &mut groups.related,
+                (Some("duplicate"), false) => &mut groups.duplicate_of,
+                (Some("duplicate"), true) => &mut groups.duplicated_by,
+                _ => &mut groups.other,
+            };
+            group.push(relation);
+        }
+        groups
+    }
 }

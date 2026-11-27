@@ -20,15 +20,17 @@ impl Service {
             let issue = self.view_issue(reference).await?;
             return Ok(issue.id);
         }
-        if kind == "project" {
-            let id = self.resolve_project(reference).await?;
+        if kind == "project" || kind == "team" {
+            let id = if kind == "team" {
+                self.resolve_team(reference).await?
+            } else {
+                self.resolve_project(reference).await?
+            };
             self.resolved.lock().await.insert(key, id.clone());
             return Ok(id);
         }
         let (operation, root) = catalog(kind)?;
-        let mut filter = if kind == "team" {
-            json!({"or":[{"key":{"eq":reference}},{"name":{"eq":reference}}]})
-        } else if kind == "user" && reference == "me" {
+        let mut filter = if kind == "user" && reference == "me" {
             json!({"isMe":{"eq":true}})
         } else if kind == "user" {
             json!({"or":[{"name":{"eq":reference}},{"displayName":{"eq":reference}},{"email":{"eq":reference}}]})
@@ -74,6 +76,103 @@ impl Service {
             .to_owned();
         self.resolved.lock().await.insert(key, id.clone());
         Ok(id)
+    }
+
+    async fn resolve_team(&self, reference: &str) -> Result<String> {
+        let mut pages = Pages::new(None);
+        let mut workspace = None;
+        loop {
+            let data = self
+                .query("ResolveTeams", json!({"first":250,"after":pages.cursor}))
+                .await?;
+            if workspace.is_none() {
+                workspace = data["organization"]["urlKey"].as_str().map(str::to_owned);
+            }
+            pages.ingest(&data["teams"])?;
+            if !pages.has_more() {
+                break;
+            }
+        }
+        let needle = reference.to_lowercase();
+        let lower = |team: &serde_json::Value, field: &str| {
+            team[field]
+                .as_str()
+                .map(str::to_lowercase)
+                .unwrap_or_default()
+        };
+        let mut matches: Vec<_> = pages
+            .items
+            .iter()
+            .filter(|t| lower(t, "key") == needle)
+            .collect();
+        if matches.is_empty() {
+            matches = pages
+                .items
+                .iter()
+                .filter(|t| lower(t, "name") == needle)
+                .collect();
+        }
+        if matches.is_empty() {
+            matches = pages
+                .items
+                .iter()
+                .filter(|t| {
+                    let name = lower(t, "name");
+                    name.starts_with(&needle)
+                        || name
+                            .split_whitespace()
+                            .any(|word| word.starts_with(&needle))
+                })
+                .collect();
+        }
+        if matches.len() == 1 {
+            return matches[0]["id"]
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| AppError::new("api", "Team reference has no id"));
+        }
+        let missing = matches.is_empty();
+        if missing && pages.items.is_empty() {
+            return Err(AppError::new(
+                "not_found",
+                format!("No team matches {reference}"),
+            ));
+        }
+        let mut candidates = if missing {
+            pages.items.iter().collect::<Vec<_>>()
+        } else {
+            matches
+        };
+        candidates.sort_by(|a, b| a["key"].as_str().cmp(&b["key"].as_str()));
+        let candidates: Vec<_> = candidates
+            .into_iter()
+            .take(10)
+            .map(|t| json!({"id":t["id"],"key":t["key"],"name":t["name"]}))
+            .collect();
+        let names = candidates
+            .iter()
+            .map(|t| {
+                format!(
+                    "{} ({})",
+                    t["key"].as_str().unwrap_or("?"),
+                    t["name"].as_str().unwrap_or("?")
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let problem = if missing {
+            "No team matches"
+        } else {
+            "Multiple teams match"
+        };
+        let mut error = AppError::new(
+            if missing { "not_found" } else { "ambiguous" },
+            format!(
+                "{problem} {reference:?}. Candidates (up to 10): {names}. Use a team key, exact name, unique name prefix, or UUID; run lnr team list to see all teams."
+            ),
+        );
+        error.details = Box::new(json!({"workspace":workspace,"candidates":candidates}));
+        Err(error)
     }
 
     async fn resolve_project(&self, reference: &str) -> Result<String> {
